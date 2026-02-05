@@ -1,0 +1,37 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Data directories (large files)
+data/papers/
+data/videos/
+data/ecg/
+data/questionnaires/
+data/datasets/
+data/results/
+
+# Environment
+.env
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MLflow
+mlruns/
+
+# Database
+*.db
+
+# Config with secrets
+config/settings.local.yaml

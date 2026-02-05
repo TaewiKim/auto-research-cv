@@ -1,0 +1,34 @@
+# Research Automation Configuration
+# Video-based Health Monitoring Research
+
+database:
+  url: sqlite:///data/research.db
+  echo: false
+
+storage:
+  base_dir: data
+  papers_dir: data/papers
+  videos_dir: data/videos
+  raw_videos_dir: data/videos/raw
+  processed_videos_dir: data/videos/processed
+  datasets_dir: data/datasets
+  cache_dir: data/cache
+
+claude:
+  # Set ANTHROPIC_API_KEY environment variable or add key here
+  api_key: ""
+  model: claude-sonnet-4-20250514
+  max_tokens: 4096
+  temperature: 0.3
+
+youtube:
+  max_duration: 600  # seconds (10 minutes)
+  preferred_quality: 720p
+  output_template: "%(id)s.%(ext)s"
+
+search:
+  default_limit: 20
+  # Set PUBMED_EMAIL environment variable for better API access
+  pubmed_email: ""
+  # Optional: Set SEMANTIC_SCHOLAR_API_KEY for higher rate limits
+  semantic_scholar_api_key: ""

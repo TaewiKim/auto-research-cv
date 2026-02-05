@@ -1,0 +1,64 @@
+# Predefined Search Queries for Video-based Health Monitoring
+# Use with: research lit search --query-file config/search_queries.yaml
+
+# Parkinson's Disease & Gait Analysis
+parkinson_gait:
+  - "Parkinson disease gait analysis video"
+  - "PD motor symptom video assessment"
+  - "Parkinson tremor detection deep learning"
+  - "bradykinesia video analysis machine learning"
+  - "freezing of gait video detection"
+  - "MDS-UPDRS video assessment"
+
+# Pose Estimation in Clinical Settings
+clinical_pose:
+  - "human pose estimation clinical assessment"
+  - "3D pose estimation neurological disorder"
+  - "skeleton-based action recognition healthcare"
+  - "markerless motion capture clinical"
+  - "video-based movement analysis rehabilitation"
+
+# Facial Analysis for Health
+facial_health:
+  - "facial expression analysis neurological"
+  - "facial palsy detection computer vision"
+  - "action unit recognition clinical"
+  - "facial asymmetry detection deep learning"
+  - "emotion recognition health monitoring"
+
+# Seizure Detection
+seizure:
+  - "video-based seizure detection"
+  - "epileptic seizure video analysis"
+  - "nocturnal seizure monitoring camera"
+  - "skeleton-based seizure classification"
+
+# Stroke Assessment
+stroke:
+  - "stroke assessment video analysis"
+  - "facial droop detection stroke"
+  - "motor function recovery video"
+  - "NIHSS video assessment automation"
+
+# General Video Health Monitoring
+general:
+  - "video-based health monitoring deep learning"
+  - "remote patient monitoring computer vision"
+  - "contactless vital signs video"
+  - "telemedicine video analysis AI"
+  - "digital biomarkers video"
+
+# Datasets
+datasets:
+  - "gait dataset video benchmark"
+  - "facial expression dataset clinical"
+  - "pose estimation dataset healthcare"
+  - "action recognition dataset medical"
+
+# Methods & Frameworks
+methods:
+  - "vision transformer pose estimation"
+  - "graph neural network skeleton"
+  - "temporal convolutional network video"
+  - "attention mechanism video analysis healthcare"
+  - "multimodal learning health video"
