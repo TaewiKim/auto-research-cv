@@ -18,8 +18,19 @@ from .tremor import (
     TremorType,
     detect_tremor,
 )
+from .walking_detection import (
+    WalkingDetector,
+    WalkingDetectionResult,
+    WalkingSegment,
+    detect_walking,
+)
 
 __all__ = [
+    # Walking Detection
+    "WalkingDetector",
+    "WalkingDetectionResult",
+    "WalkingSegment",
+    "detect_walking",
     # Tremor
     "TremorDetector",
     "TremorFeatures",
