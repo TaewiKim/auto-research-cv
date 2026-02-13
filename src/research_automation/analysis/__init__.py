@@ -1,49 +1,65 @@
-"""Advanced analysis modules for Parkinson's Disease symptoms."""
+"""Analysis modules organized by stages.
 
-from .bradykinesia import (
+Execution order:
+1) face recognition
+2) behavior analysis per person
+3) risk analysis per action
+"""
+
+from .behavior_analysis import (
+    BehaviorAnalyzer,
     BradykinesiaAnalyzer,
     BradykinesiaFeatures,
+    PersonBehaviorAnalysis,
+    TremorDetector,
+    TremorFeatures,
+    TremorType,
+    WalkingDetectionResult,
+    WalkingDetector,
+    WalkingSegment,
     analyze_bradykinesia,
+    detect_tremor,
+    detect_walking,
 )
-from .fog import (
+from .face_analysis import FaceIdentity, FaceRecognitionAnalyzer, FaceRecognitionResult
+from .risk_analysis import (
+    ActionRisk,
+    ActionRiskAnalyzer,
     FOGDetector,
     FOGEpisode,
     FOGFeatures,
     FOGType,
+    PersonRiskAnalysis,
     detect_fog,
 )
-from .tremor import (
-    TremorDetector,
-    TremorFeatures,
-    TremorType,
-    detect_tremor,
-)
-from .walking_detection import (
-    WalkingDetector,
-    WalkingDetectionResult,
-    WalkingSegment,
-    detect_walking,
-)
+from .video_pipeline import OrderedPipelineResult, OrderedVideoAnalysisPipeline, get_ordered_video_pipeline
 
 __all__ = [
-    # Walking Detection
+    "FaceIdentity",
+    "FaceRecognitionAnalyzer",
+    "FaceRecognitionResult",
+    "BehaviorAnalyzer",
+    "PersonBehaviorAnalysis",
     "WalkingDetector",
     "WalkingDetectionResult",
     "WalkingSegment",
     "detect_walking",
-    # Tremor
     "TremorDetector",
     "TremorFeatures",
     "TremorType",
     "detect_tremor",
-    # FOG
+    "BradykinesiaAnalyzer",
+    "BradykinesiaFeatures",
+    "analyze_bradykinesia",
+    "ActionRisk",
+    "ActionRiskAnalyzer",
+    "PersonRiskAnalysis",
     "FOGDetector",
     "FOGEpisode",
     "FOGFeatures",
     "FOGType",
     "detect_fog",
-    # Bradykinesia
-    "BradykinesiaAnalyzer",
-    "BradykinesiaFeatures",
-    "analyze_bradykinesia",
+    "OrderedPipelineResult",
+    "OrderedVideoAnalysisPipeline",
+    "get_ordered_video_pipeline",
 ]

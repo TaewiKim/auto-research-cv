@@ -57,6 +57,16 @@ export ANTHROPIC_API_KEY="your-key"
 export PUBMED_EMAIL="your@email.com"
 ```
 
+## Dataset Download Links
+
+Large datasets are **not** committed to this repository. Download them separately:
+
+- CARE-PD (Hugging Face): `https://huggingface.co/datasets/vida-adl/CARE-PD/tree/main`
+- CARE-PD official code: `https://github.com/TaatiTeam/CARE-PD`
+- 3DGait demo/reference repo: `https://github.com/lisqzqng/Video-based-gait-analysis-for-dementia`
+
+After download, place files under `data/datasets/` (already ignored by git).
+
 ## Project Structure
 
 ```

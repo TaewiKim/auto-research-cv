@@ -1,0 +1,2487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Gait Analysis - PD Biomarkers</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a12;
+            color: #fff;
+            min-height: 100vh;
+        }
+        .container { max-width: 1800px; margin: 0 auto; padding: 20px; }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 20px;
+            padding: 25px 30px;
+            margin-bottom: 25px;
+            border: 1px solid #2a2a4a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 { font-size: 1.8em; }
+        header h1 span { color: #667eea; }
+        .header-features { display: flex; gap: 15px; }
+        .feature-badge {
+            background: rgba(102, 126, 234, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .feature-badge.active { background: rgba(76, 175, 80, 0.3); }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab {
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            color: #888;
+            transition: all 0.2s;
+        }
+        .tab:hover { border-color: #667eea; color: #fff; }
+        .tab.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: transparent;
+            color: #fff;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+        .card {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #2a2a4a;
+        }
+        .card h2 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card h3 {
+            color: #888;
+            font-size: 0.95em;
+            margin: 20px 0 15px;
+            border-bottom: 1px solid #2a2a4a;
+            padding-bottom: 8px;
+        }
+        .full-width { grid-column: 1 / -1; }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed #3a3a5a;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #12121f;
+        }
+        .upload-area:hover { border-color: #667eea; background: #16162a; }
+        .upload-area .icon { font-size: 3em; margin-bottom: 15px; }
+
+        /* Video Container */
+        .video-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            position: relative;
+        }
+        .video-container video { width: 100%; height: 100%; object-fit: contain; }
+        .skeleton-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 3;
+        }
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85em;
+        }
+        .video-overlay.walking { background: rgba(76, 175, 80, 0.8); }
+        .video-overlay.not-walking { background: rgba(244, 67, 54, 0.8); }
+        .user-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.9);
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-badge img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+        .video-tools {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #aaa;
+            font-size: 0.85em;
+        }
+
+        /* Timeline */
+        .timeline-container {
+            margin-top: 15px;
+            background: #12121f;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .timeline-label { font-size: 0.85em; color: #888; margin-bottom: 8px; }
+        .timeline {
+            height: 30px;
+            background: #2a2a4a;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .timeline-segment {
+            position: absolute;
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #81c784);
+            border-radius: 2px;
+        }
+        .timeline-current {
+            position: absolute;
+            height: 100%;
+            width: 2px;
+            background: #fff;
+            z-index: 10;
+        }
+
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: #2a2a4a; }
+        .btn-success { background: linear-gradient(135deg, #4caf50, #66bb6a); }
+
+        /* Results Grid - 6 columns for all parameters */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .result-box {
+            background: #12121f;
+            border-radius: 10px;
+            padding: 15px 10px;
+            text-align: center;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .result-box.highlight { border-color: #667eea; background: rgba(102, 126, 234, 0.1); }
+        .result-box.warning { border-color: #ff9800; background: rgba(255, 152, 0, 0.1); }
+        .result-box.danger { border-color: #f44336; background: rgba(244, 67, 54, 0.1); }
+        .result-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .result-value.normal { background: linear-gradient(135deg, #4caf50, #81c784); -webkit-background-clip: text; }
+        .result-value.warning { background: linear-gradient(135deg, #ff9800, #ffb74d); -webkit-background-clip: text; }
+        .result-value.danger { background: linear-gradient(135deg, #f44336, #e57373); -webkit-background-clip: text; }
+        .result-label { color: #888; font-size: 0.75em; margin-top: 5px; }
+        .result-status { font-size: 0.7em; margin-top: 3px; }
+        .result-status.normal { color: #4caf50; }
+        .result-status.abnormal { color: #f44336; }
+
+        /* PD Risk Box */
+        .pd-risk-box {
+            background: linear-gradient(135deg, #12121f, #1a1a3a);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            border: 1px solid #2a2a4a;
+        }
+        .pd-risk-item { text-align: center; }
+        .pd-risk-score {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .pd-risk-label { color: #888; font-size: 0.9em; }
+        .risk-low { color: #4caf50; }
+        .risk-moderate { color: #ff9800; }
+        .risk-high { color: #f44336; }
+
+        /* Classification Box */
+        .classification-box {
+            background: linear-gradient(135deg, #1a3a1a, #162a16);
+            border: 1px solid #2a5a2a;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .classification-box.warning { background: linear-gradient(135deg, #3a3a1a, #2a2a16); border-color: #5a5a2a; }
+        .classification-box.danger { background: linear-gradient(135deg, #3a1a1a, #2a1616); border-color: #5a2a2a; }
+        .classification-label { font-size: 1.4em; font-weight: 700; }
+        .classification-sub { color: #888; margin-top: 5px; }
+
+        /* Chart Containers */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chart-container {
+            background: #12121f;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .chart-container h4 {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 200px;
+        }
+
+        /* Comparison Bars */
+        .comparison-bars { margin-top: 15px; }
+        .comparison-bar { margin-bottom: 10px; }
+        .comparison-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8em; color: #888; }
+        .comparison-bar-track { height: 16px; background: #2a2a4a; border-radius: 8px; overflow: hidden; position: relative; }
+        .comparison-bar-fill { height: 100%; border-radius: 8px; transition: width 0.5s; }
+        .comparison-bar-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: #fff;
+            border-radius: 2px;
+        }
+        .bar-healthy { background: linear-gradient(90deg, #4caf50, #81c784); }
+        .bar-pd-on { background: linear-gradient(90deg, #ff9800, #ffb74d); }
+        .bar-pd-off { background: linear-gradient(90deg, #f44336, #e57373); }
+        .bar-user { background: linear-gradient(90deg, #667eea, #764ba2); }
+
+        /* PD Indicators */
+        .pd-indicators {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .pd-indicator {
+            background: #12121f;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid transparent;
+        }
+        .pd-indicator.normal { border-color: #4caf50; }
+        .pd-indicator.abnormal { border-color: #f44336; }
+        .pd-indicator-name { font-size: 0.85em; color: #888; margin-bottom: 8px; }
+        .pd-indicator-value { font-size: 1.3em; font-weight: 600; }
+        .pd-indicator-threshold { font-size: 0.75em; color: #666; margin-top: 5px; }
+
+        /* Statistical Analysis Box */
+        .stats-box {
+            background: linear-gradient(135deg, #0f1a2e, #1a2e4a);
+            border: 1px solid #2a4a6a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .stats-quality {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .stats-quality.excellent { background: rgba(76, 175, 80, 0.3); color: #4caf50; }
+        .stats-quality.good { background: rgba(102, 126, 234, 0.3); color: #667eea; }
+        .stats-quality.fair { background: rgba(255, 152, 0, 0.3); color: #ff9800; }
+        .stats-quality.poor { background: rgba(244, 67, 54, 0.3); color: #f44336; }
+
+        .stats-meta {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .stats-meta-item {
+            text-align: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+        .stats-meta-value { font-size: 1.3em; font-weight: 600; color: #667eea; }
+        .stats-meta-label { font-size: 0.75em; color: #888; margin-top: 4px; }
+
+        /* Parameter Statistics Table */
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+        .stats-table th, .stats-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        .stats-table th { color: #888; font-weight: 500; }
+        .stats-table td { color: #fff; }
+        .stats-table tr:hover { background: rgba(102, 126, 234, 0.1); }
+        .ci-range { color: #888; font-size: 0.9em; }
+
+        /* Segments List */
+        .segments-list { max-height: 250px; overflow-y: auto; }
+        .segment-item {
+            background: #12121f;
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .segment-item:hover { background: #1a1a3a; }
+        .segment-item.active { border-left: 3px solid #667eea; }
+        .segment-time { color: #888; font-size: 0.85em; }
+        .segment-status { padding: 4px 10px; border-radius: 12px; font-size: 0.75em; }
+        .segment-status.normal { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .segment-status.warning { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .segment-status.danger { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+
+        /* Progress */
+        .progress-container { margin-top: 20px; }
+        .progress-bar { height: 6px; background: #2a2a4a; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%; transition: width 0.3s; }
+        .progress-text { text-align: center; margin-top: 10px; color: #888; font-size: 0.9em; }
+
+        /* User Management */
+        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; }
+        .user-card {
+            background: #12121f;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .user-card:hover { border-color: #667eea; }
+        .user-card img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; }
+        .add-user-card { border: 2px dashed #3a3a5a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 150px; }
+        .add-user-card .icon { font-size: 2em; margin-bottom: 10px; color: #667eea; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content { background: #1a1a2e; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-close { background: none; border: none; color: #888; font-size: 1.5em; cursor: pointer; }
+        .camera-preview { width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 12px; overflow: hidden; }
+        .camera-preview video { width: 100%; height: 100%; object-fit: cover; }
+        .form-group { margin-top: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: #888; }
+        .form-group input { width: 100%; padding: 12px; background: #12121f; border: 1px solid #3a3a5a; border-radius: 8px; color: #fff; font-size: 1em; }
+
+        /* Reference Legend */
+        .reference-legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 15px;
+            font-size: 0.8em;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+        /* Person Tabs */
+        .person-tabs .tab {
+            flex: 1;
+            text-align: center;
+            text-transform: capitalize;
+        }
+
+        /* Symptom severity colors */
+        .severity-normal { color: #4caf50; }
+        .severity-mild { color: #ff9800; }
+        .severity-moderate { color: #ff5722; }
+        .severity-severe { color: #f44336; }
+
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .results-grid { grid-template-columns: repeat(3, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .pd-indicators { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>🧠 <span>PD</span> Gait Biomarkers</h1>
+                <p style="color: #888; margin-top: 5px;">Parkinson's Disease Risk Assessment</p>
+            </div>
+            <div class="header-features">
+                <div class="feature-badge active"><span>📊</span> Gait Analysis</div>
+                <div class="feature-badge active"><span>🤲</span> Tremor Detection</div>
+                <div class="feature-badge active"><span>🧍</span> Posture Analysis</div>
+                <div class="feature-badge active"><span>👥</span> Multi-Person</div>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('analyze')">📊 Analysis</div>
+            <div class="tab" onclick="switchTab('users')">👥 Users</div>
+            <div class="tab" onclick="switchTab('history')">📈 History</div>
+        </div>
+
+        <!-- Analysis Tab -->
+        <div id="analyzeTab" class="tab-content active">
+            <div class="main-grid">
+                <!-- Left: Video -->
+                <div class="card">
+                    <h2><span class="icon">📹</span> Video Input</h2>
+
+                    <div id="uploadArea" class="upload-area">
+                        <div class="icon">📁</div>
+                        <p><strong>Drop video file here</strong></p>
+                        <p style="color: #666; font-size: 0.9em;">MP4, AVI, MOV supported</p>
+                        <input type="file" id="fileInput" accept="video/*" style="display:none">
+                    </div>
+
+                    <div id="videoSection" style="display: none;">
+                        <div class="video-container">
+                            <video id="videoPlayer" controls></video>
+                            <canvas id="skeletonCanvas" class="skeleton-canvas"></canvas>
+                            <div class="video-overlay" id="walkingIndicator">Analyzing...</div>
+                            <div class="user-badge" id="userBadge" style="display: none;">
+                                <img id="userBadgeImg" src="">
+                                <span id="userBadgeName">Unknown</span>
+                            </div>
+                        </div>
+                        <div class="video-tools">
+                            <label><input type="checkbox" id="skeletonToggle" checked> Show Skeleton Overlay</label>
+                            <span id="skeletonStatus">No skeleton</span>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button class="btn btn-secondary" onclick="selectNewVideo()" style="flex:1">📁 New</button>
+                            <button class="btn btn-success" id="symptomBtn" onclick="analyzeSymptoms()" style="flex:3">🧠 Full PD Scan (Gait + Symptoms)</button>
+                        </div>
+                    </div>
+
+                    <div class="progress-container" id="progressContainer" style="display: none;">
+                        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                        <p class="progress-text" id="progressText">Preparing...</p>
+                    </div>
+                </div>
+
+                <!-- Right: Results -->
+                <div class="card">
+                    <h2><span class="icon">📊</span> PD Biomarker Analysis</h2>
+
+                    <div id="resultsPlaceholder" style="text-align: center; padding: 60px 20px; color: #444;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">🧠</div>
+                        <p>Upload a video to analyze PD-specific biomarkers</p>
+                        <p style="font-size: 0.85em; margin-top: 10px; color: #555;">
+                            Measures: Stride Variability, Arm Swing, Step Timing Asymmetry
+                        </p>
+                    </div>
+
+                    <div id="resultsContainer" style="display: none;">
+                        <!-- Classification -->
+                        <div class="classification-box" id="classificationBox">
+                            <div class="classification-label" id="classificationLabel">-</div>
+                            <div class="classification-sub" id="classificationSub">-</div>
+                        </div>
+
+                        <!-- PD Risk Score -->
+                        <div class="pd-risk-box">
+                            <div class="pd-risk-item">
+                                <div class="pd-risk-score" id="pdRiskScore">-</div>
+                                <div class="pd-risk-label">PD Risk Score</div>
+                            </div>
+                            <div class="pd-risk-item">
+                                <div class="pd-risk-score" id="pdRiskLevel">-</div>
+                                <div class="pd-risk-label">Risk Level</div>
+                            </div>
+                            <div class="pd-risk-item">
+                                <div class="pd-risk-score" id="abnormalCount">-</div>
+                                <div class="pd-risk-label">Abnormal Indicators</div>
+                            </div>
+                        </div>
+
+                        <!-- Basic Gait Parameters -->
+                        <h3>📏 Basic Gait Parameters</h3>
+                        <div class="results-grid">
+                            <div class="result-box" id="speedBox">
+                                <div class="result-value" id="speedValue">-</div>
+                                <div class="result-label">Speed (m/s)</div>
+                            </div>
+                            <div class="result-box" id="strideBox">
+                                <div class="result-value" id="strideValue">-</div>
+                                <div class="result-label">Stride (m)</div>
+                            </div>
+                            <div class="result-box" id="cadenceBox">
+                                <div class="result-value" id="cadenceValue">-</div>
+                                <div class="result-label">Cadence</div>
+                            </div>
+                            <div class="result-box" id="stepWidthBox">
+                                <div class="result-value" id="stepWidthValue">-</div>
+                                <div class="result-label">Step Width (m)</div>
+                            </div>
+                            <div class="result-box" id="asymmetryBox">
+                                <div class="result-value" id="asymmetryValue">-</div>
+                                <div class="result-label">Leg Asymmetry</div>
+                            </div>
+                            <div class="result-box" id="stabilityBox">
+                                <div class="result-value" id="stabilityValue">-</div>
+                                <div class="result-label">Stability</div>
+                            </div>
+                        </div>
+
+                        <!-- PD-Specific Biomarkers (DATA-DRIVEN) -->
+                        <h3>🧠 PD Detection Biomarkers (Data-Driven)</h3>
+                        <div style="background: rgba(102, 126, 234, 0.1); border-radius: 8px; padding: 10px 15px; margin-bottom: 15px; font-size: 0.85em; color: #888;">
+                            ⓘ Calibrated from 10 normal + 10 PD videos. Primary indicators have AUC=0.96 (96% accuracy).
+                        </div>
+                        <div class="pd-indicators">
+                            <div class="pd-indicator" id="speedIndicator">
+                                <div class="pd-indicator-name">Walking Speed (Primary)</div>
+                                <div class="pd-indicator-value" id="speedIndicatorValue">-</div>
+                                <div class="pd-indicator-threshold">PD risk if &lt; 0.55 m/s</div>
+                            </div>
+                            <div class="pd-indicator" id="strideIndicator">
+                                <div class="pd-indicator-name">Stride Length (Primary)</div>
+                                <div class="pd-indicator-value" id="strideIndicatorValue">-</div>
+                                <div class="pd-indicator-threshold">PD risk if &lt; 0.60 m</div>
+                            </div>
+                            <div class="pd-indicator" id="combinedIndicator">
+                                <div class="pd-indicator-name">Combined Assessment</div>
+                                <div class="pd-indicator-value" id="combinedValue">-</div>
+                                <div class="pd-indicator-threshold">Both abnormal = High risk</div>
+                            </div>
+                        </div>
+
+                        <!-- Secondary Indicators -->
+                        <h3 style="margin-top: 20px;">📊 Secondary Indicators</h3>
+                        <div class="results-grid" style="grid-template-columns: repeat(4, 1fr);">
+                            <div class="result-box" id="strideCvBox">
+                                <div class="result-value" id="strideCvValue" style="font-size: 1.2em;">-</div>
+                                <div class="result-label">Stride Time CV</div>
+                            </div>
+                            <div class="result-box" id="armAsymBox">
+                                <div class="result-value" id="armAsymValue" style="font-size: 1.2em;">-</div>
+                                <div class="result-label">Arm Swing Asym.</div>
+                            </div>
+                            <div class="result-box" id="stepAsymBox">
+                                <div class="result-value" id="stepAsymValue" style="font-size: 1.2em;">-</div>
+                                <div class="result-label">Step Time Asym.</div>
+                            </div>
+                            <div class="result-box" id="armAmpBox">
+                                <div class="result-value" id="armAmplitudeValue" style="font-size: 1.2em;">-</div>
+                                <div class="result-label">Arm Swing Amp.</div>
+                            </div>
+                        </div>
+
+                        <!-- Charts -->
+                        <div class="charts-grid">
+                            <!-- Radar Chart: Parameter Comparison -->
+                            <div class="chart-container">
+                                <h4>📊 Parameter Profile vs Reference</h4>
+                                <div class="chart-wrapper">
+                                    <canvas id="radarChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Bar Chart: Speed Comparison -->
+                            <div class="chart-container">
+                                <h4>🏃 Speed Comparison</h4>
+                                <div class="chart-wrapper">
+                                    <canvas id="speedChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Comparison Bars -->
+                        <h3>📈 Reference Comparison</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-bar">
+                                <div class="comparison-bar-label"><span>Your Speed</span><span id="userSpeedLabel">-</span></div>
+                                <div class="comparison-bar-track">
+                                    <div class="comparison-bar-fill bar-user" id="userBar" style="width: 0%"></div>
+                                    <div class="comparison-bar-marker" id="healthyMarker" style="left: 80.7%;" title="Healthy: 1.21 m/s"></div>
+                                    <div class="comparison-bar-marker" id="pdOnMarker" style="left: 68%; background: #ff9800;" title="PD ON: 1.02 m/s"></div>
+                                    <div class="comparison-bar-marker" id="pdOffMarker" style="left: 57%; background: #f44336;" title="PD OFF: 0.86 m/s"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="reference-legend">
+                            <div class="legend-item"><div class="legend-dot" style="background: #fff;"></div> Healthy (1.21)</div>
+                            <div class="legend-item"><div class="legend-dot" style="background: #ff9800;"></div> PD ON (1.02)</div>
+                            <div class="legend-item"><div class="legend-dot" style="background: #f44336;"></div> PD OFF (0.86)</div>
+                        </div>
+
+                        <!-- Statistical Analysis -->
+                        <h3>📊 Statistical Analysis (Across All Segments)</h3>
+                        <div class="stats-box" id="statsBox">
+                            <div class="stats-header">
+                                <div>
+                                    <strong>Multi-Segment Statistical Summary</strong>
+                                    <div style="color: #888; font-size: 0.85em; margin-top: 3px;">Aggregated analysis with 95% confidence intervals</div>
+                                </div>
+                                <span class="stats-quality" id="statsQuality">-</span>
+                            </div>
+
+                            <div class="stats-meta">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="statsSegments">-</div>
+                                    <div class="stats-meta-label">Segments Analyzed</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="statsTotalTime">-</div>
+                                    <div class="stats-meta-label">Total Walking (s)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="statsReliability">-</div>
+                                    <div class="stats-meta-label">Reliability</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="statsMinDuration">-</div>
+                                    <div class="stats-meta-label">Min Segment (s)</div>
+                                </div>
+                            </div>
+
+                            <table class="stats-table">
+                                <thead>
+                                    <tr>
+                                        <th>Parameter</th>
+                                        <th>Mean ± SD</th>
+                                        <th>95% CI</th>
+                                        <th>CV%</th>
+                                        <th>Range</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="statsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- PD Statistical Assessment -->
+                        <div class="stats-box" id="pdStatsBox">
+                            <div class="stats-header">
+                                <div>
+                                    <strong>🧠 PD Risk Assessment (Statistical)</strong>
+                                    <div style="color: #888; font-size: 0.85em; margin-top: 3px;" id="pdConfidence">-</div>
+                                </div>
+                                <span class="stats-quality" id="pdStatsRiskLevel">-</span>
+                            </div>
+
+                            <table class="stats-table">
+                                <thead>
+                                    <tr>
+                                        <th>Indicator</th>
+                                        <th>Mean</th>
+                                        <th>Threshold</th>
+                                        <th>Abnormal %</th>
+                                        <th>p-value</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pdStatsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Segments -->
+                        <h3>🚶 Walking Segments</h3>
+                        <div class="segments-list" id="segmentsList"></div>
+                    </div>
+
+                    <!-- Multi-Symptom Analysis Results -->
+                    <div id="symptomResultsContainer" style="display: none;">
+                        <!-- Person Selector -->
+                        <div class="stats-box" id="personSelector">
+                            <div class="stats-header">
+                                <div>
+                                    <strong>👥 Detected Persons</strong>
+                                    <div style="color: #888; font-size: 0.85em; margin-top: 3px;" id="personCount">-</div>
+                                </div>
+                            </div>
+                            <div class="person-tabs" id="personTabs" style="display: flex; gap: 10px; margin-top: 10px;"></div>
+                        </div>
+
+                        <!-- Activity Segment Timeline -->
+                        <h3>📊 Activity Segmentation (구간 분류)</h3>
+                        <div class="stats-box" id="activityBox">
+                            <div style="margin-bottom: 15px; font-size: 0.9em; color: #888;">
+                                비디오에서 활동 유형별로 구간을 분류한 후, 각 구간에 적합한 분석을 수행합니다.
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
+                                <div class="stats-meta-item" style="border-left: 3px solid #4caf50;">
+                                    <div class="stats-meta-value" id="walkingDuration">-</div>
+                                    <div class="stats-meta-label">🚶 보행구간</div>
+                                    <div style="font-size: 0.7em; color: #666;">→ 보행분석, FOG</div>
+                                </div>
+                                <div class="stats-meta-item" style="border-left: 3px solid #2196f3;">
+                                    <div class="stats-meta-value" id="restingDuration">-</div>
+                                    <div class="stats-meta-label">🤲 안정구간</div>
+                                    <div style="font-size: 0.7em; color: #666;">→ 떨림분석</div>
+                                </div>
+                                <div class="stats-meta-item" style="border-left: 3px solid #ff9800;">
+                                    <div class="stats-meta-value" id="taskDuration">-</div>
+                                    <div class="stats-meta-label">✋ 작업구간</div>
+                                    <div style="font-size: 0.7em; color: #666;">→ 서동분석</div>
+                                </div>
+                                <div class="stats-meta-item" style="border-left: 3px solid #9c27b0;">
+                                    <div class="stats-meta-value" id="standingDuration">-</div>
+                                    <div class="stats-meta-label">🧍 서있는구간</div>
+                                    <div style="font-size: 0.7em; color: #666;">→ 자세분석</div>
+                                </div>
+                            </div>
+
+                            <!-- Activity Timeline Visualization -->
+                            <div class="timeline-label" style="margin-bottom: 8px;">
+                                <span>Activity Timeline</span>
+                                <span id="totalDuration" style="float: right;">-</span>
+                            </div>
+                            <div class="timeline" id="activityTimeline" style="height: 40px; position: relative;">
+                            </div>
+                            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 10px; font-size: 0.8em;">
+                                <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 12px; height: 12px; background: #4caf50; border-radius: 2px;"></div> Walking</div>
+                                <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 12px; height: 12px; background: #2196f3; border-radius: 2px;"></div> Resting</div>
+                                <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 12px; height: 12px; background: #ff9800; border-radius: 2px;"></div> Task</div>
+                                <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 12px; height: 12px; background: #9c27b0; border-radius: 2px;"></div> Standing</div>
+                            </div>
+                        </div>
+
+                        <!-- Overall Risk Assessment -->
+                        <div class="classification-box" id="symptomClassificationBox">
+                            <div class="classification-label" id="symptomClassificationLabel">-</div>
+                            <div class="classification-sub" id="symptomClassificationSub">-</div>
+                        </div>
+
+                        <!-- Symptom Overview Grid -->
+                        <div class="results-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+                            <div class="result-box" id="tremorBox">
+                                <div class="result-value" id="tremorSeverity">-</div>
+                                <div class="result-label">🤲 Tremor</div>
+                                <div class="result-status" id="tremorStatus">-</div>
+                            </div>
+                            <div class="result-box" id="bradyBox">
+                                <div class="result-value" id="bradySeverity">-</div>
+                                <div class="result-label">🐢 Bradykinesia</div>
+                                <div class="result-status" id="bradyStatus">-</div>
+                            </div>
+                            <div class="result-box" id="postureBox">
+                                <div class="result-value" id="postureSeverity">-</div>
+                                <div class="result-label">🧍 Posture</div>
+                                <div class="result-status" id="postureStatus">-</div>
+                            </div>
+                            <div class="result-box" id="fogBox">
+                                <div class="result-value" id="fogSeverity">-</div>
+                                <div class="result-label">🧊 FOG</div>
+                                <div class="result-status" id="fogStatus">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Tremor Analysis -->
+                        <h3>🤲 Tremor Analysis (3-6 Hz Resting Tremor)</h3>
+                        <div class="stats-box" id="tremorStatsBox">
+                            <div style="margin-bottom: 10px; font-size: 0.8em; color: #888;">
+                                PD tremor: 3-6 Hz | Freeze Index = freeze_power / locomotor_power
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(5, 1fr);">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorFreq">-</div>
+                                    <div class="stats-meta-label">Dominant Freq (Hz)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorAmplitude">-</div>
+                                    <div class="stats-meta-label">Amplitude</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorFreezeIndex">-</div>
+                                    <div class="stats-meta-label">Freeze Index</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorRegularity">-</div>
+                                    <div class="stats-meta-label">Regularity</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorSegments">-</div>
+                                    <div class="stats-meta-label">Segments</div>
+                                </div>
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(2, 1fr); margin-top: 10px;">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorScore">-</div>
+                                    <div class="stats-meta-label">MDS-UPDRS Score</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="tremorPdRatio">-</div>
+                                    <div class="stats-meta-label">PD Power Ratio</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bradykinesia Analysis -->
+                        <h3>🐢 Bradykinesia Analysis (Movement Slowness)</h3>
+                        <div class="stats-box" id="bradyStatsBox">
+                            <div style="margin-bottom: 10px; font-size: 0.8em; color: #888;">
+                                MDS-UPDRS criteria: Decrement detection, Blink rate (normal: 15-24/min, PD: 3-15/min)
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(5, 1fr);">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyScore">-</div>
+                                    <div class="stats-meta-label">Movement Score</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyVelocity">-</div>
+                                    <div class="stats-meta-label">Avg Velocity (px/s)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyDecrement">-</div>
+                                    <div class="stats-meta-label">Decrement Score</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyHesitation">-</div>
+                                    <div class="stats-meta-label">Hesitation Ratio</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradySegments">-</div>
+                                    <div class="stats-meta-label">Segments</div>
+                                </div>
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(3, 1fr); margin-top: 10px;">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyBlinkRate">-</div>
+                                    <div class="stats-meta-label">Blink Rate (/min)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyFacialMove">-</div>
+                                    <div class="stats-meta-label">Facial Movement</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="bradyVelocityCV">-</div>
+                                    <div class="stats-meta-label">Velocity CV (%)</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Posture Analysis -->
+                        <h3>🧍 Posture Analysis (Stooped/Camptocormia)</h3>
+                        <div class="stats-box" id="postureStatsBox">
+                            <div style="margin-bottom: 10px; font-size: 0.8em; color: #888;">
+                                Camptocormia: Lower ≥30°, Upper ≥45° | Pisa syndrome: ≥10° lateral deviation
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(5, 1fr);">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureUPDRS">-</div>
+                                    <div class="stats-meta-label">UPDRS Score</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureTrunk">-</div>
+                                    <div class="stats-meta-label">Trunk Angle (°)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureLateral">-</div>
+                                    <div class="stats-meta-label">Lateral Angle (°)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureHead">-</div>
+                                    <div class="stats-meta-label">Head Drop (°)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureSegments">-</div>
+                                    <div class="stats-meta-label">Segments</div>
+                                </div>
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(3, 1fr); margin-top: 10px;">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="posturePisa">-</div>
+                                    <div class="stats-meta-label">Pisa Syndrome</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureSway">-</div>
+                                    <div class="stats-meta-label">Sway Index</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="postureReasons">-</div>
+                                    <div class="stats-meta-label">Findings</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- FOG Analysis -->
+                        <h3>🧊 Freezing of Gait Analysis</h3>
+                        <div class="stats-box" id="fogStatsBox">
+                            <div style="margin-bottom: 10px; font-size: 0.8em; color: #888;">
+                                Moore et al. 2008: Freeze Index (FI) = power(3-8Hz) / power(0.5-3Hz), FI > 2.0 = FOG risk
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(5, 1fr);">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogFreezeIndex">-</div>
+                                    <div class="stats-meta-label">Freeze Index</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogStrideCV">-</div>
+                                    <div class="stats-meta-label">Stride CV (%)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogCadence">-</div>
+                                    <div class="stats-meta-label">Cadence (spm)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogAsymmetry">-</div>
+                                    <div class="stats-meta-label">Step Asymmetry</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogSegments">-</div>
+                                    <div class="stats-meta-label">Segments</div>
+                                </div>
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(3, 1fr); margin-top: 10px;">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogFreezeRatio">-</div>
+                                    <div class="stats-meta-label">Freeze Ratio</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogFestination">-</div>
+                                    <div class="stats-meta-label">Festination</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogSeverityReasons">-</div>
+                                    <div class="stats-meta-label">Severity Factors</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- FOG Transition Analysis (보행동결 전환점 분석) -->
+                        <h3>🚶↔️🧍 보행동결 전환점 분석 (FOG at Transitions)</h3>
+                        <div class="stats-box" id="fogTransitionBox">
+                            <div style="margin-bottom: 15px; font-size: 0.85em; color: #888;">
+                                서있는 구간 ↔ 보행구간 전환점에서 보행동결을 감지합니다. (보행 시작/종료 시 발생하는 FOG)
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(5, 1fr);">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogTransitionCount">-</div>
+                                    <div class="stats-meta-label">전환점 수</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogHesitation">-</div>
+                                    <div class="stats-meta-label">주저함 비율</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogInitDelay">-</div>
+                                    <div class="stats-meta-label">시작 지연 (초)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogFestination">-</div>
+                                    <div class="stats-meta-label">종종걸음</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="fogAkinesia">-</div>
+                                    <div class="stats-meta-label">운동차단</div>
+                                </div>
+                            </div>
+
+                            <!-- Transition Events List -->
+                            <div style="margin-top: 15px;">
+                                <div style="font-size: 0.9em; color: #888; margin-bottom: 10px;">📍 감지된 전환점:</div>
+                                <div id="fogTransitionList" class="segments-list" style="max-height: 150px;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Gait Biomarker Analysis -->
+                        <h3>🚶 Gait Biomarker Analysis</h3>
+                        <div class="stats-box" id="gaitAnalysisBox">
+                            <div style="margin-bottom: 10px; font-size: 0.8em; color: #888;">
+                                Stride variability, arm swing asymmetry, step timing - classic PD gait biomarkers
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(4, 1fr);">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitStrideCV">-</div>
+                                    <div class="stats-meta-label">Stride CV (%)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitArmSwing">-</div>
+                                    <div class="stats-meta-label">Arm Swing Asym (%)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitStepTime">-</div>
+                                    <div class="stats-meta-label">Step Time Asym (%)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitPdRisk">-</div>
+                                    <div class="stats-meta-label">PD Risk Score</div>
+                                </div>
+                            </div>
+                            <div class="stats-meta" style="grid-template-columns: repeat(4, 1fr); margin-top: 10px;">
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitCadence">-</div>
+                                    <div class="stats-meta-label">Cadence (steps/min)</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitWalkRatio">-</div>
+                                    <div class="stats-meta-label">Walk Ratio</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitSteps">-</div>
+                                    <div class="stats-meta-label">Total Steps</div>
+                                </div>
+                                <div class="stats-meta-item">
+                                    <div class="stats-meta-value" id="gaitClassification">-</div>
+                                    <div class="stats-meta-label">Classification</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Metrics Table -->
+                        <h3>📊 Statistical Summary (All Symptoms)</h3>
+                        <div class="stats-box">
+                            <table class="stats-table">
+                                <thead>
+                                    <tr>
+                                        <th>Symptom</th>
+                                        <th>Metric</th>
+                                        <th>Mean ± SD</th>
+                                        <th>95% CI</th>
+                                        <th>Segments</th>
+                                        <th>Severity</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="symptomStatsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="usersTab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">👥</span> Registered Users</h2>
+                <p style="color: #888; margin-bottom: 20px;">Register users for automatic identification</p>
+                <div class="user-grid" id="userGrid">
+                    <div class="user-card add-user-card" onclick="openRegisterModal()">
+                        <div class="icon">➕</div>
+                        <div>Add User</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="historyTab" class="tab-content">
+            <div class="card">
+                <h2><span class="icon">📈</span> Analysis History</h2>
+                <p style="color: #888;">Track gait changes over time (Coming soon)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="modal" id="registerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Register New User</h3>
+                <button class="modal-close" onclick="closeRegisterModal()">×</button>
+            </div>
+            <div class="camera-preview">
+                <video id="cameraPreview" autoplay playsinline></video>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="userName" placeholder="Enter name">
+            </div>
+            <button class="btn" style="width: 100%; margin-top: 15px;" onclick="captureAndRegister()">📸 Capture & Register</button>
+        </div>
+    </div>
+
+    <script>
+        let currentFilename = null;
+        let analysisResults = null;
+        let cameraStream = null;
+        let radarChart = null;
+        let speedChart = null;
+        let symptomResults = null;
+        let currentPersonId = null;
+        let skeletonAnimationHandle = null;
+        const POSE_CONNECTIONS = [
+            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+            [11, 23], [12, 24], [23, 24], [23, 25], [25, 27],
+            [27, 29], [29, 31], [24, 26], [26, 28], [28, 30], [30, 32]
+        ];
+
+        function resizeSkeletonCanvas() {
+            const canvas = document.getElementById('skeletonCanvas');
+            const video = document.getElementById('videoPlayer');
+            const rect = video.getBoundingClientRect();
+            canvas.width = Math.max(1, Math.round(rect.width));
+            canvas.height = Math.max(1, Math.round(rect.height));
+        }
+
+        function clearSkeletonCanvas() {
+            const canvas = document.getElementById('skeletonCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function getCurrentSkeletonTrack() {
+            if (!symptomResults || !currentPersonId) return null;
+            const person = symptomResults.persons?.find(p => p.person_id === currentPersonId);
+            return person?.skeleton_track || null;
+        }
+
+        function renderSkeletonOverlay() {
+            const video = document.getElementById('videoPlayer');
+            const toggle = document.getElementById('skeletonToggle');
+            const status = document.getElementById('skeletonStatus');
+            const track = getCurrentSkeletonTrack();
+
+            clearSkeletonCanvas();
+
+            if (!toggle.checked) {
+                status.textContent = 'Skeleton hidden';
+                return;
+            }
+            if (!track || !video.duration || !video.videoWidth) {
+                status.textContent = 'No skeleton';
+                return;
+            }
+
+            const fps = symptomResults?.video_info?.fps || 30;
+            const frame = Math.round(video.currentTime * fps);
+            const relFrame = frame - (track.start_frame || 0);
+            const stride = track.frame_stride || 1;
+            const frameIdx = Math.floor(relFrame / stride);
+            const points = (track.keypoints || [])[frameIdx];
+            if (!points) {
+                status.textContent = 'Out of tracked range';
+                return;
+            }
+
+            const canvas = document.getElementById('skeletonCanvas');
+            const ctx = canvas.getContext('2d');
+            const sx = canvas.width / video.videoWidth;
+            const sy = canvas.height / video.videoHeight;
+            const scale = Math.min(sx, sy);
+            const drawW = video.videoWidth * scale;
+            const drawH = video.videoHeight * scale;
+            const offsetX = (canvas.width - drawW) / 2;
+            const offsetY = (canvas.height - drawH) / 2;
+            const looksNormalized = points.some(p => p && p.length >= 2) &&
+                Math.max(...points.map(p => (Array.isArray(p) ? p[0] : 0))) <= 2 &&
+                Math.max(...points.map(p => (Array.isArray(p) ? p[1] : 0))) <= 2;
+
+            const toPx = (p) => {
+                if (looksNormalized) {
+                    return {
+                        x: offsetX + p[0] * drawW,
+                        y: offsetY + p[1] * drawH
+                    };
+                }
+                return {
+                    x: offsetX + p[0] * scale,
+                    y: offsetY + p[1] * scale
+                };
+            };
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(0, 230, 255, 0.85)';
+            ctx.fillStyle = 'rgba(255, 235, 59, 0.9)';
+
+            POSE_CONNECTIONS.forEach(([a, b]) => {
+                if (!points[a] || !points[b]) return;
+                const p1 = toPx(points[a]);
+                const p2 = toPx(points[b]);
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            });
+
+            points.forEach((p) => {
+                const pt = toPx(p);
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 2.2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            status.textContent = `Skeleton frame ${frameIdx + 1}/${track.n_frames || '?'}`;
+        }
+
+        function startSkeletonOverlayLoop() {
+            if (skeletonAnimationHandle) cancelAnimationFrame(skeletonAnimationHandle);
+            const draw = () => {
+                renderSkeletonOverlay();
+                skeletonAnimationHandle = requestAnimationFrame(draw);
+            };
+            draw();
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab:nth-child(${tab === 'analyze' ? 1 : tab === 'users' ? 2 : 3})`).classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+            if (tab === 'users') loadUsers();
+        }
+
+        // File upload
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#667eea'; });
+        uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = '#3a3a5a'; });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#3a3a5a';
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+        document.getElementById('videoPlayer').addEventListener('loadedmetadata', () => {
+            resizeSkeletonCanvas();
+            renderSkeletonOverlay();
+        });
+        window.addEventListener('resize', () => {
+            resizeSkeletonCanvas();
+            renderSkeletonOverlay();
+        });
+        document.getElementById('skeletonToggle').addEventListener('change', renderSkeletonOverlay);
+        startSkeletonOverlayLoop();
+
+        async function handleFile(file) {
+            if (!file.type.startsWith('video/')) { alert('Please select a video file'); return; }
+            const formData = new FormData();
+            formData.append('video', file);
+            document.getElementById('uploadArea').style.display = 'none';
+            document.getElementById('videoSection').style.display = 'block';
+            document.getElementById('videoPlayer').src = URL.createObjectURL(file);
+            resizeSkeletonCanvas();
+            clearSkeletonCanvas();
+            document.getElementById('skeletonStatus').textContent = 'Waiting for analysis';
+            try {
+                const response = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (data.success) {
+                    currentFilename = data.filename;
+                    document.getElementById('symptomBtn').disabled = false;
+                }
+            } catch (error) { console.error('Upload error:', error); }
+        }
+
+        function selectNewVideo() {
+            document.getElementById('uploadArea').style.display = 'block';
+            document.getElementById('videoSection').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('symptomResultsContainer').style.display = 'none';
+            document.getElementById('resultsPlaceholder').style.display = 'block';
+            document.getElementById('userBadge').style.display = 'none';
+            currentFilename = null;
+            symptomResults = null;
+            fileInput.value = '';
+            clearSkeletonCanvas();
+            document.getElementById('skeletonStatus').textContent = 'No skeleton';
+        }
+
+        // Full PD Scan (Gait + Symptoms Analysis)
+
+        async function analyzeSymptoms() {
+            if (!currentFilename) return;
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            progressContainer.style.display = 'block';
+            document.getElementById('symptomBtn').disabled = true;
+
+            const steps = [
+                'Extracting person tracks...',
+                'Analyzing gait biomarkers...',
+                'Detecting tremor segments...',
+                'Analyzing bradykinesia...',
+                'Measuring posture...',
+                'Detecting FOG...',
+                'Aggregating statistics...'
+            ];
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 7;
+                if (progress > 95) progress = 95;
+                progressFill.style.width = progress + '%';
+                progressText.textContent = steps[Math.min(Math.floor(progress / 14), steps.length - 1)];
+            }, 500);
+
+            try {
+                // Run both analyses in parallel
+                const [symptomResponse, gaitResponse] = await Promise.all([
+                    fetch('/analyze-symptoms', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: currentFilename })
+                    }),
+                    fetch('/analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: currentFilename, identify_user: true })
+                    })
+                ]);
+
+                clearInterval(interval);
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Complete!';
+
+                const symptomData = await symptomResponse.json();
+                const gaitData = await gaitResponse.json();
+
+                if (symptomData.error) { alert('Symptom Error: ' + symptomData.error); return; }
+
+                // Combine results - prefer enriched gait block from /analyze-symptoms,
+                // fallback to normalized /analyze output.
+                symptomResults = symptomData;
+                symptomResults.gait_analysis = symptomData.gait_analysis || normalizeGaitData(gaitData);
+
+                // Also store gait results separately for the traditional display
+                if (!gaitData.error) {
+                    analysisResults = gaitData;
+                }
+
+                displaySymptomResults(symptomResults);
+            } catch (error) {
+                clearInterval(interval);
+                console.error('Analysis error:', error);
+                alert('Analysis failed: ' + error.message);
+            } finally {
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    document.getElementById('symptomBtn').disabled = false;
+                }, 1000);
+            }
+        }
+
+        function normalizeGaitData(raw) {
+            if (!raw || raw.error) return null;
+            const summary = raw.summary || {};
+            const walking = raw.walking_detection || {};
+            const analysis = raw.analysis_results || [];
+
+            let stepCount = 0;
+            analysis.forEach(seg => {
+                const cadence = seg?.cadence;
+                const duration = seg?.duration;
+                if (cadence !== undefined && duration !== undefined) {
+                    stepCount += Math.round((cadence * duration) / 60);
+                }
+            });
+
+            return {
+                success: true,
+                walking_detection: walking,
+                analysis_results: analysis,
+                statistical_analysis: raw.statistical_analysis || {},
+                summary: summary,
+                biomarkers: {
+                    stride_cv: summary.avg_stride_time_cv,
+                    arm_swing_asymmetry: summary.avg_arm_swing_asymmetry,
+                    step_time_asymmetry: summary.avg_step_time_asymmetry,
+                    pd_risk_score: summary.avg_pd_risk_score,
+                    walk_ratio: walking.walking_ratio,
+                },
+                gait_metrics: {
+                    walking_speed: summary.avg_speed,
+                    stride_length: summary.avg_stride_length,
+                    cadence: summary.avg_cadence,
+                    step_count: stepCount,
+                },
+                classification: summary.overall_classification || summary.classification || '-',
+                pd_risk_score: summary.avg_pd_risk_score !== undefined ? summary.avg_pd_risk_score * 100 : undefined,
+            };
+        }
+
+        function displaySymptomResults(results) {
+            document.getElementById('resultsPlaceholder').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('symptomResultsContainer').style.display = 'block';
+
+            // Person count with activity summary
+            const actSummary = results.activity_summary || {};
+            const totalAct = (actSummary.walking || 0) + (actSummary.resting || 0) +
+                            (actSummary.task || 0) + (actSummary.standing || 0);
+            document.getElementById('personCount').textContent =
+                `${results.n_persons} person(s) detected | Total activity: ${totalAct.toFixed(1)}s`;
+
+            // Create person tabs
+            const personTabs = document.getElementById('personTabs');
+            personTabs.innerHTML = '';
+            results.persons.forEach((person, idx) => {
+                const tab = document.createElement('div');
+                tab.className = 'tab' + (idx === 0 ? ' active' : '');
+                tab.textContent = person.person_id.replace('_', ' ');
+                tab.onclick = () => selectPerson(person.person_id);
+                personTabs.appendChild(tab);
+            });
+
+            // Show first person by default
+            if (results.persons.length > 0) {
+                selectPerson(results.persons[0].person_id);
+            }
+        }
+
+        function selectPerson(personId) {
+            currentPersonId = personId;
+            const person = symptomResults.persons.find(p => p.person_id === personId);
+            if (!person) return;
+            renderSkeletonOverlay();
+
+            // Update tabs
+            document.querySelectorAll('#personTabs .tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent === personId.replace('_', ' '));
+            });
+
+            // Display activity breakdown
+            const breakdown = person.activity_breakdown || {};
+            document.getElementById('walkingDuration').textContent = (breakdown.walking || 0).toFixed(1) + 's';
+            document.getElementById('restingDuration').textContent = (breakdown.resting || 0).toFixed(1) + 's';
+            document.getElementById('taskDuration').textContent = (breakdown.task || 0).toFixed(1) + 's';
+            document.getElementById('standingDuration').textContent = (breakdown.standing || 0).toFixed(1) + 's';
+            document.getElementById('totalDuration').textContent = 'Total: ' + person.duration.toFixed(1) + 's';
+
+            // Draw activity timeline
+            const timeline = document.getElementById('activityTimeline');
+            timeline.innerHTML = '';
+
+            const activityColors = {
+                'walking': '#4caf50',
+                'resting': '#2196f3',
+                'task': '#ff9800',
+                'standing': '#9c27b0'
+            };
+
+            const activities = person.activity_segments || [];
+            const duration = person.duration;
+            const videoInfo = symptomResults.video_info;
+            const startOffset = person.start_frame / videoInfo.fps;
+
+            activities.forEach(act => {
+                const div = document.createElement('div');
+                div.style.cssText = `
+                    position: absolute;
+                    height: 100%;
+                    left: ${((act.start_time - startOffset) / duration * 100)}%;
+                    width: ${((act.end_time - act.start_time) / duration * 100)}%;
+                    background: ${activityColors[act.activity_type] || '#666'};
+                    border-radius: 2px;
+                    cursor: pointer;
+                    transition: opacity 0.2s;
+                `;
+                div.title = `${act.activity_type}: ${act.start_time.toFixed(1)}s - ${act.end_time.toFixed(1)}s (${(act.end_time - act.start_time).toFixed(1)}s)`;
+                div.onmouseover = () => div.style.opacity = '0.8';
+                div.onmouseout = () => div.style.opacity = '1';
+                div.onclick = () => {
+                    const video = document.getElementById('videoPlayer');
+                    if (video) video.currentTime = act.start_time;
+                };
+                timeline.appendChild(div);
+            });
+
+            // Calculate overall severity
+            const severities = [];
+            const severityOrder = {'normal': 0, 'mild': 1, 'moderate': 2, 'severe': 3};
+            Object.values(person.symptoms).forEach(s => {
+                if (s.summary && s.summary.overall_severity !== 'unknown') {
+                    severities.push(s.summary.overall_severity);
+                }
+            });
+            const maxSeverity = severities.reduce((max, s) =>
+                severityOrder[s] > severityOrder[max] ? s : max, 'normal');
+
+            // Update classification box
+            const classBox = document.getElementById('symptomClassificationBox');
+            classBox.className = 'classification-box';
+            if (maxSeverity === 'severe') classBox.classList.add('danger');
+            else if (maxSeverity === 'moderate') classBox.classList.add('warning');
+
+            document.getElementById('symptomClassificationLabel').textContent =
+                maxSeverity === 'normal' ? 'Normal' :
+                maxSeverity === 'mild' ? 'Mild PD Indicators' :
+                maxSeverity === 'moderate' ? 'Moderate PD Indicators' : 'Significant PD Indicators';
+            document.getElementById('symptomClassificationSub').textContent =
+                `${person.person_id} | Duration: ${person.duration.toFixed(1)}s`;
+
+            // Update each symptom box
+            updateSymptomBox('tremor', person.symptoms.tremor, person);
+            updateSymptomBox('brady', person.symptoms.bradykinesia, person);
+            updateSymptomBox('posture', person.symptoms.posture, person);
+            updateSymptomBox('fog', person.symptoms.fog, person);
+
+            // Update detailed stats
+            updateSymptomDetails('tremor', person.symptoms.tremor);
+            updateSymptomDetails('bradykinesia', person.symptoms.bradykinesia);
+            updateSymptomDetails('posture', person.symptoms.posture);
+            updateSymptomDetails('fog', person.symptoms.fog);
+
+            // Update FOG Transition analysis
+            updateFOGTransitions(person);
+
+            // Update Gait Analysis (from combined results)
+            updateGaitAnalysis(person);
+
+            // Update stats table
+            updateSymptomStatsTable(person.symptoms);
+        }
+
+        function updateGaitAnalysis(person) {
+            // Prefer dedicated gait API result, then fallback to per-person gait symptom summary.
+            const gaitData = symptomResults?.gait_analysis;
+            const gaitSymptom = person?.symptoms?.gait;
+
+            if ((!gaitData || gaitData.error) && (!gaitSymptom || !gaitSymptom.summary)) {
+                document.getElementById('gaitStrideCV').textContent = '-';
+                document.getElementById('gaitArmSwing').textContent = '-';
+                document.getElementById('gaitStepTime').textContent = '-';
+                document.getElementById('gaitPdRisk').textContent = '-';
+                document.getElementById('gaitCadence').textContent = '-';
+                document.getElementById('gaitWalkRatio').textContent = '-';
+                document.getElementById('gaitSteps').textContent = '-';
+                document.getElementById('gaitClassification').textContent = '-';
+                return;
+            }
+
+            const metrics = gaitData?.biomarkers || {};
+            const gaitMetrics = gaitData?.gait_metrics || {};
+            const gaitStats = gaitSymptom?.summary?.metrics_stats || {};
+            const gaitSummary = gaitData?.summary || {};
+
+            // Stride CV
+            const strideCv = metrics.stride_cv ?? gaitStats.stride_cv?.mean;
+            document.getElementById('gaitStrideCV').textContent =
+                strideCv !== undefined ? strideCv.toFixed(1) + '%' : '-';
+
+            // Arm Swing Asymmetry
+            const armSwingAsym = metrics.arm_swing_asymmetry ?? gaitSummary.avg_arm_swing_asymmetry;
+            document.getElementById('gaitArmSwing').textContent =
+                armSwingAsym !== undefined ? (armSwingAsym * 100).toFixed(1) + '%' : '-';
+
+            // Step Time Asymmetry
+            const stepTimeAsym = metrics.step_time_asymmetry ?? gaitSummary.avg_step_time_asymmetry;
+            document.getElementById('gaitStepTime').textContent =
+                stepTimeAsym !== undefined ? (stepTimeAsym * 100).toFixed(1) + '%' : '-';
+
+            // PD Risk Score
+            const pdRiskRaw = gaitData?.pd_risk_score ?? metrics.pd_risk_score ??
+                (gaitSummary.avg_pd_risk_score !== undefined ? gaitSummary.avg_pd_risk_score * 100 : undefined);
+            const pdRisk = (pdRiskRaw !== undefined && pdRiskRaw <= 1) ? pdRiskRaw * 100 : pdRiskRaw;
+            document.getElementById('gaitPdRisk').textContent =
+                pdRisk !== undefined ? pdRisk.toFixed(0) + '%' : '-';
+
+            // Cadence
+            const cadence = gaitMetrics.cadence ?? gaitSummary.avg_cadence ?? gaitStats.gait_frequency?.mean;
+            document.getElementById('gaitCadence').textContent =
+                cadence !== undefined ? cadence.toFixed(0) : '-';
+
+            // Walk Ratio
+            const walkRatio = metrics.walk_ratio ?? gaitData?.walking_detection?.walking_ratio;
+            document.getElementById('gaitWalkRatio').textContent =
+                walkRatio !== undefined ? walkRatio.toFixed(3) : '-';
+
+            // Total Steps
+            const stepCount = gaitMetrics.step_count ?? gaitStats.step_count?.mean;
+            document.getElementById('gaitSteps').textContent =
+                stepCount !== undefined ? Math.round(stepCount) : '-';
+
+            // Classification
+            const classification = gaitData?.classification ||
+                (gaitSymptom?.summary?.overall_severity ? gaitSymptom.summary.overall_severity.toUpperCase() : '-');
+            document.getElementById('gaitClassification').textContent = classification;
+
+            // Color code classification
+            const classEl = document.getElementById('gaitClassification');
+            if (classification.toLowerCase().includes('healthy') || classification.toLowerCase().includes('normal')) {
+                classEl.style.color = '#51cf66';
+            } else if (classification.toLowerCase().includes('mild')) {
+                classEl.style.color = '#fcc419';
+            } else if (classification.toLowerCase().includes('pd') || classification.toLowerCase().includes('parkinson')) {
+                classEl.style.color = '#ff6b6b';
+            } else {
+                classEl.style.color = 'inherit';
+            }
+        }
+
+        function updateFOGTransitions(person) {
+            const fogTransData = person.symptoms.fog_transition;
+            const fogData = person.symptoms.fog;
+            // Use transitions from fog.transitions (new), fog_transitions (legacy), or fog_transition (alt)
+            const transitions = fogData?.transitions || person.fog_transitions || [];
+
+            // Update counts
+            const transCount = fogData?.transitions_detected || transitions.length;
+            document.getElementById('fogTransitionCount').textContent = transCount;
+
+            if (fogTransData && fogTransData.summary) {
+                const stats = fogTransData.summary.metrics_stats;
+
+                // Hesitation ratio
+                if (stats.hesitation_ratio) {
+                    document.getElementById('fogHesitation').textContent =
+                        (stats.hesitation_ratio.mean * 100).toFixed(0) + '%';
+                } else {
+                    document.getElementById('fogHesitation').textContent = '-';
+                }
+
+                // Initiation delay
+                if (stats.initiation_delay_sec) {
+                    document.getElementById('fogInitDelay').textContent =
+                        stats.initiation_delay_sec.mean.toFixed(2) + 's';
+                } else {
+                    document.getElementById('fogInitDelay').textContent = '-';
+                }
+
+                // Festination power
+                if (stats.festination_power) {
+                    document.getElementById('fogFestination').textContent =
+                        (stats.festination_power.mean * 100).toFixed(0) + '%';
+                } else {
+                    document.getElementById('fogFestination').textContent = '-';
+                }
+
+                // Akinesia ratio
+                if (stats.akinesia_ratio) {
+                    document.getElementById('fogAkinesia').textContent =
+                        (stats.akinesia_ratio.mean * 100).toFixed(0) + '%';
+                } else {
+                    document.getElementById('fogAkinesia').textContent = '-';
+                }
+            } else {
+                document.getElementById('fogHesitation').textContent = '-';
+                document.getElementById('fogInitDelay').textContent = '-';
+                document.getElementById('fogFestination').textContent = '-';
+                document.getElementById('fogAkinesia').textContent = '-';
+            }
+
+            // Display transition list
+            const listEl = document.getElementById('fogTransitionList');
+            listEl.innerHTML = '';
+
+            if (transitions.length === 0) {
+                listEl.innerHTML = '<div style="color: #666; padding: 10px;">전환점이 감지되지 않았습니다.</div>';
+                return;
+            }
+
+            const results = fogTransData?.results || [];
+
+            transitions.forEach((trans, idx) => {
+                const result = results[idx];
+                const div = document.createElement('div');
+                div.className = 'segment-item';
+                // Support both old (start_time) and new (boundary_time) formats
+                const seekTime = trans.boundary_time || trans.start_time || 0;
+                div.onclick = () => {
+                    const video = document.getElementById('videoPlayer');
+                    if (video) video.currentTime = Math.max(0, seekTime - 1);
+                };
+
+                // Support both old (metadata.transition_type) and new (type/transition_type) formats
+                const transType = trans.type || trans.metadata?.transition_type || trans.transition_type || 'unknown';
+                const transLabel = (transType === 'initiation' || transType === 'gait_initiation' || transType === 'standing_to_walking')
+                    ? '🚶 보행 시작' : '🧍 보행 종료';
+                const severity = result?.severity || 'unknown';
+                const severityClass = severity === 'normal' ? 'normal' :
+                                     severity === 'mild' ? 'warning' : 'danger';
+                const severityKr = severity === 'normal' ? '정상' :
+                                   severity === 'mild' ? '경미' :
+                                   severity === 'moderate' ? '중등도' :
+                                   severity === 'severe' ? '심함' : '-';
+
+                // Get key metrics
+                const hesitation = result?.metrics?.hesitation_ratio;
+                const delay = result?.metrics?.initiation_delay_sec;
+
+                // Support both old (start_time/end_time) and new (boundary_time) formats
+                const startTime = trans.boundary_time || trans.start_time || 0;
+                const endTime = trans.end_time || (trans.analysis_window?.end) || (startTime + 2);
+                const standingDur = trans.standing_duration ? ` (서기: ${trans.standing_duration.toFixed(1)}s)` : '';
+
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${transLabel}</strong>
+                            <div class="segment-time">${startTime.toFixed(1)}s${standingDur}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            ${hesitation !== undefined ? `<span style="margin-right: 10px;">주저함: ${(hesitation * 100).toFixed(0)}%</span>` : ''}
+                            ${delay !== undefined && delay > 0 ? `<span style="margin-right: 10px;">지연: ${delay.toFixed(1)}s</span>` : ''}
+                            <span class="segment-status ${severityClass}">${severityKr}</span>
+                        </div>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+        }
+
+        function updateSymptomBox(prefix, symptomData, person = null) {
+            const severityEl = document.getElementById(prefix + 'Severity');
+            const statusEl = document.getElementById(prefix + 'Status');
+            const boxEl = document.getElementById(prefix + 'Box');
+
+            if (!symptomData || !symptomData.summary) {
+                severityEl.textContent = '-';
+                const breakdown = person?.activity_breakdown || {};
+                if (prefix === 'tremor' && (breakdown.resting || 0) <= 0) {
+                    statusEl.textContent = 'No resting segment';
+                } else if (prefix === 'brady' && (breakdown.task || 0) <= 0) {
+                    statusEl.textContent = 'No task segment';
+                } else if (prefix === 'fog' && (person?.n_fog_transitions || 0) <= 0) {
+                    statusEl.textContent = 'No transition';
+                } else {
+                    statusEl.textContent = 'No data';
+                }
+                statusEl.className = 'result-status';
+                boxEl.className = 'result-box';
+                return;
+            }
+
+            const severity = symptomData.summary.overall_severity;
+            const nSegments = symptomData.summary.n_segments;
+
+            severityEl.textContent = severity.charAt(0).toUpperCase() + severity.slice(1);
+            statusEl.textContent = `${nSegments} segments`;
+
+            if (severity === 'normal') {
+                severityEl.className = 'result-value normal';
+                statusEl.className = 'result-status normal';
+                boxEl.className = 'result-box';
+            } else if (severity === 'mild') {
+                severityEl.className = 'result-value warning';
+                statusEl.className = 'result-status';
+                boxEl.className = 'result-box warning';
+            } else {
+                severityEl.className = 'result-value danger';
+                statusEl.className = 'result-status abnormal';
+                boxEl.className = 'result-box danger';
+            }
+        }
+
+        function updateSymptomDetails(type, symptomData) {
+            if (!symptomData || !symptomData.summary) return;
+            const stats = symptomData.summary.metrics_stats;
+
+            if (type === 'tremor') {
+                // Updated with new literature-based metrics
+                document.getElementById('tremorFreq').textContent =
+                    stats.dominant_frequency ? stats.dominant_frequency.mean.toFixed(1) : '-';
+                document.getElementById('tremorAmplitude').textContent =
+                    stats.tremor_amplitude ? stats.tremor_amplitude.mean.toFixed(2) : '-';
+                document.getElementById('tremorFreezeIndex').textContent =
+                    stats.freeze_index ? stats.freeze_index.mean.toFixed(2) : '-';
+                document.getElementById('tremorRegularity').textContent =
+                    stats.tremor_regularity ? (stats.tremor_regularity.mean * 100).toFixed(0) + '%' : '-';
+                document.getElementById('tremorScore').textContent =
+                    stats.score ? stats.score.mean.toFixed(0) + '/4' : '-';
+                document.getElementById('tremorPdRatio').textContent =
+                    stats.pd_power_ratio ? (stats.pd_power_ratio.mean * 100).toFixed(0) + '%' : '-';
+                document.getElementById('tremorSegments').textContent = symptomData.summary.n_segments;
+            } else if (type === 'bradykinesia') {
+                // Updated with MDS-UPDRS based metrics
+                document.getElementById('bradyScore').textContent =
+                    stats.movement_score ? stats.movement_score.mean.toFixed(0) + '/4' : '-';
+                document.getElementById('bradyVelocity').textContent =
+                    stats.avg_velocity ? stats.avg_velocity.mean.toFixed(0) : '-';
+                document.getElementById('bradyDecrement').textContent =
+                    stats.decrement_score ? stats.decrement_score.mean.toFixed(2) : '-';
+                document.getElementById('bradyHesitation').textContent =
+                    stats.hesitation_ratio ? (stats.hesitation_ratio.mean * 100).toFixed(0) + '%' : '-';
+                document.getElementById('bradyBlinkRate').textContent =
+                    stats.blink_rate ? stats.blink_rate.mean.toFixed(1) : '-';
+                document.getElementById('bradyFacialMove').textContent =
+                    stats.facial_movement ? stats.facial_movement.mean.toFixed(2) : '-';
+                document.getElementById('bradyVelocityCV').textContent =
+                    stats.velocity_cv ? (stats.velocity_cv.mean).toFixed(1) + '%' : '-';
+                document.getElementById('bradySegments').textContent = symptomData.summary.n_segments;
+            } else if (type === 'posture') {
+                // New literature-based metrics (Doherty et al. 2011, Tinazzi et al. 2015)
+                document.getElementById('postureUPDRS').textContent =
+                    stats.updrs_posture_score ? stats.updrs_posture_score.mean.toFixed(0) + '/4' : '-';
+                document.getElementById('postureTrunk').textContent =
+                    stats.trunk_forward_angle ? stats.trunk_forward_angle.mean.toFixed(1) + '°' : '-';
+                document.getElementById('postureLateral').textContent =
+                    stats.lateral_angle ? stats.lateral_angle.mean.toFixed(1) + '°' : '-';
+                document.getElementById('postureHead').textContent =
+                    stats.head_drop_angle ? stats.head_drop_angle.mean.toFixed(1) + '°' : '-';
+                document.getElementById('postureSegments').textContent = symptomData.summary.n_segments;
+                document.getElementById('postureSway').textContent =
+                    stats.sway_index ? stats.sway_index.mean.toFixed(2) : '-';
+
+                // Pisa syndrome detection
+                if (symptomData.results && symptomData.results.length > 0) {
+                    const hasPisa = symptomData.results.some(r => r.metrics && r.metrics.has_pisa_syndrome);
+                    document.getElementById('posturePisa').textContent = hasPisa ? 'Detected' : 'No';
+                    document.getElementById('posturePisa').style.color = hasPisa ? '#ff6b6b' : '#51cf66';
+
+                    // Severity reasons
+                    const allReasons = symptomData.results
+                        .filter(r => r.metrics && r.metrics.severity_reasons)
+                        .flatMap(r => r.metrics.severity_reasons);
+                    const uniqueReasons = [...new Set(allReasons)];
+                    document.getElementById('postureReasons').textContent =
+                        uniqueReasons.length > 0 ? uniqueReasons.slice(0, 2).join(', ') : '-';
+                } else {
+                    document.getElementById('posturePisa').textContent = '-';
+                    document.getElementById('postureReasons').textContent = '-';
+                }
+            } else if (type === 'fog') {
+                // New literature-based metrics (Moore et al. 2008)
+                document.getElementById('fogFreezeIndex').textContent =
+                    stats.freeze_index ? stats.freeze_index.mean.toFixed(2) : '-';
+                document.getElementById('fogStrideCV').textContent =
+                    stats.stride_cv ? stats.stride_cv.mean.toFixed(1) + '%' : '-';
+                document.getElementById('fogCadence').textContent =
+                    stats.cadence ? stats.cadence.mean.toFixed(0) : '-';
+                document.getElementById('fogAsymmetry').textContent =
+                    stats.step_asymmetry ? (stats.step_asymmetry.mean * 100).toFixed(1) + '%' : '-';
+                document.getElementById('fogFreezeRatio').textContent =
+                    stats.freeze_ratio ? (stats.freeze_ratio.mean * 100).toFixed(0) + '%' : '-';
+                document.getElementById('fogFestination').textContent =
+                    stats.has_festination ? 'Yes' : 'No';
+                document.getElementById('fogSegments').textContent = symptomData.summary.n_segments;
+
+                // Severity reasons (if available)
+                if (symptomData.results && symptomData.results.length > 0) {
+                    const allReasons = symptomData.results
+                        .filter(r => r.metrics && r.metrics.severity_reasons)
+                        .flatMap(r => r.metrics.severity_reasons);
+                    const uniqueReasons = [...new Set(allReasons)];
+                    document.getElementById('fogSeverityReasons').textContent =
+                        uniqueReasons.length > 0 ? uniqueReasons.slice(0, 3).join(', ') : '-';
+                } else {
+                    document.getElementById('fogSeverityReasons').textContent = '-';
+                }
+            }
+        }
+
+        function updateSymptomStatsTable(symptoms) {
+            const tbody = document.getElementById('symptomStatsTableBody');
+            tbody.innerHTML = '';
+
+            const symptomLabels = {
+                'tremor': {'name': '🤲 Tremor', 'metrics': ['dominant_frequency', 'tremor_amplitude', 'pd_power_ratio']},
+                'bradykinesia': {'name': '🐢 Bradykinesia', 'metrics': ['avg_velocity', 'blink_rate', 'facial_movement']},
+                'posture': {'name': '🧍 Posture', 'metrics': ['trunk_forward_angle', 'lateral_lean', 'head_drop_angle']},
+                'fog': {'name': '🧊 FOG', 'metrics': ['ankle_hip_ratio', 'freeze_ratio', 'trembling_ratio']},
+                'gait': {'name': '🚶 Gait', 'metrics': ['speed_mean', 'stride_cv', 'gait_frequency']}
+            };
+
+            const metricLabels = {
+                'dominant_frequency': 'Frequency (Hz)',
+                'tremor_amplitude': 'Amplitude',
+                'pd_power_ratio': 'PD Power %',
+                'avg_velocity': 'Velocity (px/s)',
+                'blink_rate': 'Blink Rate (/min)',
+                'facial_movement': 'Facial Move',
+                'trunk_forward_angle': 'Trunk Angle (°)',
+                'lateral_lean': 'Lateral Lean (px)',
+                'head_drop_angle': 'Head Drop (°)',
+                'ankle_hip_ratio': 'Ankle/Hip Ratio',
+                'freeze_ratio': 'Freeze %',
+                'trembling_ratio': 'Trembling %',
+                'speed_mean': 'Speed Mean',
+                'stride_cv': 'Stride CV (%)',
+                'gait_frequency': 'Gait Freq (Hz)'
+            };
+
+            Object.keys(symptomLabels).forEach(symptomKey => {
+                const symptom = symptoms[symptomKey];
+                if (!symptom || !symptom.summary) return;
+
+                const label = symptomLabels[symptomKey];
+                const stats = symptom.summary.metrics_stats;
+                const severity = symptom.summary.overall_severity;
+                const nSegments = symptom.summary.n_segments;
+
+                label.metrics.forEach((metricKey, idx) => {
+                    if (!stats[metricKey]) return;
+                    const m = stats[metricKey];
+                    const row = document.createElement('tr');
+
+                    const isPercent = metricKey.includes('ratio');
+                    const meanStr = isPercent ?
+                        `${(m.mean * 100).toFixed(1)}% ± ${(m.std * 100).toFixed(1)}%` :
+                        `${m.mean.toFixed(2)} ± ${m.std.toFixed(2)}`;
+                    const ciStr = isPercent ?
+                        `[${(m.ci_lower * 100).toFixed(1)}%, ${(m.ci_upper * 100).toFixed(1)}%]` :
+                        `[${m.ci_lower.toFixed(2)}, ${m.ci_upper.toFixed(2)}]`;
+
+                    const severityClass = severity === 'normal' ? 'color: #4caf50;' :
+                        severity === 'mild' ? 'color: #ff9800;' : 'color: #f44336;';
+
+                    row.innerHTML = `
+                        <td style="text-align: left;">${idx === 0 ? label.name : ''}</td>
+                        <td>${metricLabels[metricKey]}</td>
+                        <td>${meanStr}</td>
+                        <td class="ci-range">${ciStr}</td>
+                        <td>${idx === 0 ? nSegments : ''}</td>
+                        <td style="${severityClass}">${idx === 0 ? severity : ''}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            });
+        }
+
+        function displayResults(results) {
+            document.getElementById('resultsPlaceholder').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'block';
+            document.getElementById('symptomResultsContainer').style.display = 'none';
+
+            // User info
+            const userInfo = results.user;
+            if (userInfo && userInfo.identified) {
+                const badge = document.getElementById('userBadge');
+                badge.style.display = 'flex';
+                document.getElementById('userBadgeImg').src = `/users/${userInfo.user_id}/photo`;
+                document.getElementById('userBadgeName').textContent = userInfo.user_name;
+            }
+
+            // Walking indicator on video
+            const walking = results.walking_detection;
+            const duration = results.video_info.duration;
+            const video = document.getElementById('videoPlayer');
+            video.ontimeupdate = () => {
+                const isWalking = walking.segments.some(s => video.currentTime >= s.start_time && video.currentTime <= s.end_time);
+                const indicator = document.getElementById('walkingIndicator');
+                indicator.className = 'video-overlay ' + (isWalking ? 'walking' : 'not-walking');
+                indicator.textContent = isWalking ? '🚶 Walking' : '🧍 Not Walking';
+            };
+
+            // Use summary (aggregated statistics) when available, otherwise first segment
+            const summary = results.summary;
+            const seg = results.analysis_results[0];
+            if (!seg) return;
+
+            // Use aggregated values from summary if available
+            const speed = summary?.avg_speed ?? seg.walking_speed;
+            const strideLength = summary?.avg_stride_length ?? seg.stride_length;
+            const cadence = summary?.avg_cadence ?? seg.cadence;
+            const stepWidth = summary?.avg_step_width ?? seg.step_width;
+            const asymmetry = summary?.avg_asymmetry ?? seg.asymmetry;
+            const stability = summary?.avg_stability ?? seg.stability_score;
+            const strideCv = summary?.avg_stride_time_cv ?? seg.stride_time_cv;
+            const armAsym = summary?.avg_arm_swing_asymmetry ?? seg.arm_swing_asymmetry;
+            const armAmp = summary?.avg_arm_swing_amplitude ?? seg.arm_swing_amplitude;
+            const stepAsym = summary?.avg_step_time_asymmetry ?? seg.step_time_asymmetry;
+            const pdRiskScore = summary?.avg_pd_risk_score ?? seg.pd_risk_score;
+            const pdRiskLevel = summary?.overall_pd_risk_level ?? seg.pd_risk_level;
+            const totalDuration = summary?.total_duration ?? seg.duration;
+            const nSegments = summary?.n_segments ?? 1;
+
+            // Classification
+            const classBox = document.getElementById('classificationBox');
+            classBox.className = 'classification-box';
+            if (pdRiskLevel === 'High') classBox.classList.add('danger');
+            else if (pdRiskLevel === 'Moderate') classBox.classList.add('warning');
+            document.getElementById('classificationLabel').textContent = summary?.overall_classification ?? seg.classification;
+            document.getElementById('classificationSub').textContent = `${nSegments} segments | Total: ${totalDuration.toFixed(1)}s`;
+
+            // PD Risk Score (using aggregated values with SD)
+            const riskScoreEl = document.getElementById('pdRiskScore');
+            const pdRiskStd = summary?.pd_risk_score_std;
+            if (pdRiskStd !== undefined && nSegments > 1) {
+                riskScoreEl.innerHTML = `${(pdRiskScore * 100).toFixed(0)}%<span style="font-size:0.5em;display:block;color:#888">± ${(pdRiskStd * 100).toFixed(0)}%</span>`;
+            } else {
+                riskScoreEl.textContent = (pdRiskScore * 100).toFixed(0) + '%';
+            }
+            riskScoreEl.className = 'pd-risk-score ' + (pdRiskScore > 0.5 ? 'risk-high' : pdRiskScore > 0.25 ? 'risk-moderate' : 'risk-low');
+
+            const riskLevelEl = document.getElementById('pdRiskLevel');
+            riskLevelEl.textContent = pdRiskLevel;
+            riskLevelEl.className = 'pd-risk-score ' + (pdRiskLevel === 'High' ? 'risk-high' : pdRiskLevel === 'Moderate' ? 'risk-moderate' : 'risk-low');
+
+            // Count abnormal indicators (DATA-DRIVEN: primary indicators)
+            let primaryAbnormal = 0;
+            if (speed < 0.55) primaryAbnormal++;
+            if (strideLength < 0.60) primaryAbnormal++;
+            document.getElementById('abnormalCount').textContent = primaryAbnormal + '/2';
+            document.getElementById('abnormalCount').className = 'pd-risk-score ' + (primaryAbnormal >= 2 ? 'risk-high' : primaryAbnormal === 1 ? 'risk-moderate' : 'risk-low');
+
+            // Basic parameters (aggregated with ± SD when available)
+            const stats = results.statistical_analysis?.parameters || {};
+
+            // Speed with SD
+            if (stats.walking_speed && nSegments > 1) {
+                document.getElementById('speedValue').innerHTML = `${speed.toFixed(2)}<span style="font-size:0.6em;color:#888"> ± ${stats.walking_speed.std.toFixed(2)}</span>`;
+            } else {
+                document.getElementById('speedValue').textContent = speed.toFixed(2);
+            }
+
+            // Stride length with SD
+            if (stats.stride_length && nSegments > 1) {
+                document.getElementById('strideValue').innerHTML = `${strideLength.toFixed(2)}<span style="font-size:0.6em;color:#888"> ± ${stats.stride_length.std.toFixed(2)}</span>`;
+            } else {
+                document.getElementById('strideValue').textContent = strideLength.toFixed(2);
+            }
+
+            // Cadence with SD
+            if (stats.cadence && nSegments > 1) {
+                document.getElementById('cadenceValue').innerHTML = `${cadence.toFixed(0)}<span style="font-size:0.6em;color:#888"> ± ${stats.cadence.std.toFixed(0)}</span>`;
+            } else {
+                document.getElementById('cadenceValue').textContent = cadence.toFixed(0);
+            }
+
+            // Step width with SD
+            if (stats.step_width && nSegments > 1) {
+                document.getElementById('stepWidthValue').innerHTML = `${stepWidth.toFixed(3)}<span style="font-size:0.6em;color:#888"> ± ${stats.step_width.std.toFixed(3)}</span>`;
+            } else {
+                document.getElementById('stepWidthValue').textContent = stepWidth.toFixed(3);
+            }
+
+            // Asymmetry with SD
+            if (stats.asymmetry && nSegments > 1) {
+                document.getElementById('asymmetryValue').innerHTML = `${(asymmetry * 100).toFixed(1)}%<span style="font-size:0.6em;color:#888"> ± ${(stats.asymmetry.std * 100).toFixed(1)}%</span>`;
+            } else {
+                document.getElementById('asymmetryValue').textContent = (asymmetry * 100).toFixed(1) + '%';
+            }
+
+            // Stability with SD
+            if (stats.stability_score && nSegments > 1) {
+                document.getElementById('stabilityValue').innerHTML = `${(stability * 100).toFixed(0)}%<span style="font-size:0.6em;color:#888"> ± ${(stats.stability_score.std * 100).toFixed(0)}%</span>`;
+            } else {
+                document.getElementById('stabilityValue').textContent = (stability * 100).toFixed(0) + '%';
+            }
+
+            // Color code speed
+            const speedVal = document.getElementById('speedValue');
+            speedVal.className = 'result-value ' + (speed >= 1.03 ? 'normal' : speed >= 0.77 ? 'warning' : 'danger');
+
+            // PRIMARY PD INDICATORS (DATA-DRIVEN)
+            const speedThreshold = 0.55;  // m/s - from calibration
+            const strideThreshold = 0.60;  // m - from calibration
+
+            const speedLow = speed < speedThreshold;
+            const strideLow = strideLength < strideThreshold;
+            const bothAbnormal = speedLow && strideLow;
+
+            // Speed indicator
+            const speedInd = document.getElementById('speedIndicator');
+            speedInd.className = 'pd-indicator ' + (speedLow ? 'abnormal' : 'normal');
+            document.getElementById('speedIndicatorValue').textContent = speed.toFixed(2) + ' m/s';
+
+            // Stride indicator
+            const strideInd = document.getElementById('strideIndicator');
+            strideInd.className = 'pd-indicator ' + (strideLow ? 'abnormal' : 'normal');
+            document.getElementById('strideIndicatorValue').textContent = strideLength.toFixed(2) + ' m';
+
+            // Combined indicator
+            const combinedInd = document.getElementById('combinedIndicator');
+            if (bothAbnormal) {
+                combinedInd.className = 'pd-indicator abnormal';
+                document.getElementById('combinedValue').textContent = 'HIGH RISK';
+            } else if (speedLow || strideLow) {
+                combinedInd.className = 'pd-indicator';
+                combinedInd.style.borderColor = '#ff9800';
+                document.getElementById('combinedValue').textContent = 'MODERATE';
+            } else {
+                combinedInd.className = 'pd-indicator normal';
+                document.getElementById('combinedValue').textContent = 'NORMAL';
+            }
+
+            // SECONDARY INDICATORS
+            const statsParams = results.statistical_analysis?.parameters || {};
+
+            // Stride Time CV
+            document.getElementById('strideCvValue').textContent = strideCv.toFixed(1) + '%';
+
+            // Arm Swing Asymmetry
+            document.getElementById('armAsymValue').textContent = (armAsym * 100).toFixed(1) + '%';
+
+            // Step Time Asymmetry
+            document.getElementById('stepAsymValue').textContent = (stepAsym * 100).toFixed(1) + '%';
+
+            // Arm Swing Amplitude
+            document.getElementById('armAmplitudeValue').textContent = armAmp.toFixed(1) + '°';
+
+            // Speed comparison bar (using aggregated speed)
+            const speedPct = (speed / 1.5) * 100;
+            document.getElementById('userBar').style.width = Math.min(speedPct, 100) + '%';
+            document.getElementById('userSpeedLabel').textContent = speed.toFixed(2) + ' m/s' + (nSegments > 1 ? ' (avg)' : '');
+
+            // Create charts with aggregated data
+            const chartData = {
+                walking_speed: speed,
+                stride_length: strideLength,
+                cadence: cadence,
+                stride_time_cv: strideCv,
+                arm_swing_asymmetry: armAsym,
+                arm_swing_amplitude: armAmp
+            };
+            createRadarChart(chartData);
+            createSpeedChart(chartData);
+
+            // Segments list
+            const segmentsList = document.getElementById('segmentsList');
+            segmentsList.innerHTML = '';
+            results.analysis_results.forEach((s, i) => {
+                const div = document.createElement('div');
+                div.className = 'segment-item';
+                div.onclick = () => { video.currentTime = s.start_time; };
+                const meetsMin = walking.segments[i]?.meets_min_duration !== false;
+                const statusClass = s.pd_risk_level === 'Low' ? 'normal' : s.pd_risk_level === 'Moderate' ? 'warning' : 'danger';
+                div.innerHTML = `
+                    <div>
+                        <strong>Segment ${i + 1}</strong> ${meetsMin ? '✓' : '<span style="color:#888">(too short)</span>'}
+                        <div class="segment-time">${s.start_time.toFixed(1)}s - ${s.end_time.toFixed(1)}s (${s.duration.toFixed(1)}s)</div>
+                    </div>
+                    <div>
+                        <span style="margin-right: 10px;">${s.walking_speed.toFixed(2)} m/s</span>
+                        <span class="segment-status ${statusClass}">${s.pd_risk_level}</span>
+                    </div>
+                `;
+                segmentsList.appendChild(div);
+            });
+
+            // Display Statistical Analysis
+            if (results.statistical_analysis) {
+                displayStatisticalAnalysis(results.statistical_analysis);
+            }
+        }
+
+        function displayStatisticalAnalysis(stats) {
+            // Quality badge
+            const qualityBadge = document.getElementById('statsQuality');
+            qualityBadge.textContent = stats.analysis_quality;
+            qualityBadge.className = 'stats-quality ' + stats.analysis_quality.toLowerCase().replace(' ', '-');
+
+            // Meta stats
+            document.getElementById('statsSegments').textContent = `${stats.n_segments_analyzed}/${stats.n_segments_total}`;
+            document.getElementById('statsTotalTime').textContent = stats.total_walking_time_sec.toFixed(1);
+            document.getElementById('statsReliability').textContent = (stats.reliability_score * 100).toFixed(0) + '%';
+            document.getElementById('statsMinDuration').textContent = stats.min_segment_duration_sec;
+
+            // Parameter statistics table
+            const tableBody = document.getElementById('statsTableBody');
+            tableBody.innerHTML = '';
+
+            const paramLabels = {
+                'walking_speed': 'Walking Speed (m/s)',
+                'stride_length': 'Stride Length (m)',
+                'cadence': 'Cadence (steps/min)',
+                'step_width': 'Step Width (m)',
+                'stride_time_cv': 'Stride Time CV (%)',
+                'arm_swing_asymmetry': 'Arm Swing Asym.',
+                'arm_swing_amplitude': 'Arm Swing Amp. (°)',
+                'step_time_asymmetry': 'Step Time Asym.',
+                'pd_risk_score': 'PD Risk Score'
+            };
+
+            const params = stats.parameters || {};
+            Object.keys(paramLabels).forEach(key => {
+                if (!params[key]) return;
+                const p = params[key];
+                const row = document.createElement('tr');
+
+                // Format values based on parameter type
+                let meanStr, ciStr, rangeStr;
+                if (key === 'cadence') {
+                    meanStr = `${p.mean.toFixed(1)} ± ${p.std.toFixed(1)}`;
+                    ciStr = `[${p.ci_95[0].toFixed(1)}, ${p.ci_95[1].toFixed(1)}]`;
+                    rangeStr = `${p.min.toFixed(1)} - ${p.max.toFixed(1)}`;
+                } else if (key.includes('asymmetry') || key === 'pd_risk_score') {
+                    meanStr = `${(p.mean * 100).toFixed(1)}% ± ${(p.std * 100).toFixed(1)}%`;
+                    ciStr = `[${(p.ci_95[0] * 100).toFixed(1)}%, ${(p.ci_95[1] * 100).toFixed(1)}%]`;
+                    rangeStr = `${(p.min * 100).toFixed(1)}% - ${(p.max * 100).toFixed(1)}%`;
+                } else if (key === 'stride_time_cv' || key === 'arm_swing_amplitude') {
+                    meanStr = `${p.mean.toFixed(2)} ± ${p.std.toFixed(2)}`;
+                    ciStr = `[${p.ci_95[0].toFixed(2)}, ${p.ci_95[1].toFixed(2)}]`;
+                    rangeStr = `${p.min.toFixed(2)} - ${p.max.toFixed(2)}`;
+                } else {
+                    meanStr = `${p.mean.toFixed(3)} ± ${p.std.toFixed(3)}`;
+                    ciStr = `[${p.ci_95[0].toFixed(3)}, ${p.ci_95[1].toFixed(3)}]`;
+                    rangeStr = `${p.min.toFixed(3)} - ${p.max.toFixed(3)}`;
+                }
+
+                row.innerHTML = `
+                    <td style="text-align: left;">${paramLabels[key]}</td>
+                    <td>${meanStr}</td>
+                    <td class="ci-range">${ciStr}</td>
+                    <td>${p.cv.toFixed(1)}%</td>
+                    <td class="ci-range">${rangeStr}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // PD Statistical Assessment
+            const pdAssess = stats.pd_assessment;
+            if (pdAssess && pdAssess.overall) {
+                const riskLevel = document.getElementById('pdStatsRiskLevel');
+                riskLevel.textContent = pdAssess.overall.risk_level;
+                riskLevel.className = 'stats-quality ' + (
+                    pdAssess.overall.risk_level === 'High' ? 'poor' :
+                    pdAssess.overall.risk_level === 'Moderate' ? 'fair' : 'excellent'
+                );
+                document.getElementById('pdConfidence').textContent = pdAssess.overall.confidence;
+
+                const pdTableBody = document.getElementById('pdStatsTableBody');
+                pdTableBody.innerHTML = '';
+
+                const indicators = pdAssess.indicators || {};
+                const indicatorLabels = {
+                    'stride_variability': { name: 'Stride Time CV', unit: '%', multiplier: 1 },
+                    'arm_swing': { name: 'Arm Swing Asymmetry', unit: '%', multiplier: 100 },
+                    'step_timing': { name: 'Step Time Asymmetry', unit: '%', multiplier: 100 }
+                };
+
+                Object.keys(indicatorLabels).forEach(key => {
+                    if (!indicators[key]) return;
+                    const ind = indicators[key];
+                    const label = indicatorLabels[key];
+                    const row = document.createElement('tr');
+
+                    const meanVal = (ind.mean * label.multiplier).toFixed(1) + label.unit;
+                    const threshVal = (ind.threshold * label.multiplier).toFixed(1) + label.unit;
+                    const abnormalPct = ind.abnormal_pct.toFixed(0) + '%';
+                    const pValue = ind.p_value !== null ? ind.p_value.toFixed(3) : '-';
+                    const statusClass = ind.statistically_abnormal ? 'color: #f44336;' : 'color: #4caf50;';
+                    const statusText = ind.statistically_abnormal ? '⚠️ Abnormal' : '✓ Normal';
+
+                    row.innerHTML = `
+                        <td style="text-align: left;">${label.name}</td>
+                        <td>${meanVal}</td>
+                        <td>${threshVal}</td>
+                        <td>${abnormalPct}</td>
+                        <td>${pValue}</td>
+                        <td style="${statusClass}">${statusText}</td>
+                    `;
+                    pdTableBody.appendChild(row);
+                });
+            }
+        }
+
+        function createRadarChart(data) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (radarChart) radarChart.destroy();
+
+            // Normalize values to 0-100 scale
+            const normalize = (val, min, max) => Math.min(100, Math.max(0, ((val - min) / (max - min)) * 100));
+
+            const userData = [
+                normalize(data.walking_speed, 0, 1.5),
+                normalize(data.stride_length, 0, 1.5),
+                normalize(data.cadence, 60, 140),
+                100 - normalize(data.stride_time_cv, 0, 10), // Inverted: lower is better
+                100 - normalize(data.arm_swing_asymmetry, 0, 0.3), // Inverted
+                normalize(data.arm_swing_amplitude, 0, 20)
+            ];
+
+            const healthyData = [
+                normalize(1.21, 0, 1.5),
+                normalize(1.3, 0, 1.5),
+                normalize(110, 60, 140),
+                100 - normalize(2.0, 0, 10),
+                100 - normalize(0.05, 0, 0.3),
+                normalize(10, 0, 20)
+            ];
+
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Speed', 'Stride', 'Cadence', 'Stride Regularity', 'Arm Symmetry', 'Arm Amplitude'],
+                    datasets: [{
+                        label: 'Your Result',
+                        data: userData,
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                        borderColor: '#667eea',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#667eea'
+                    }, {
+                        label: 'Healthy Reference',
+                        data: healthyData,
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        borderColor: '#4caf50',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#4caf50'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { display: false },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            pointLabels: { color: '#888', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#888', boxWidth: 12 } }
+                    }
+                }
+            });
+        }
+
+        function createSpeedChart(data) {
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            if (speedChart) speedChart.destroy();
+
+            speedChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Your Result (avg)', 'Healthy', 'PD (ON)', 'PD (OFF)'],
+                    datasets: [{
+                        label: 'Speed (m/s)',
+                        data: [data.walking_speed, 1.21, 1.02, 0.86],
+                        backgroundColor: ['#667eea', '#4caf50', '#ff9800', '#f44336'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: { beginAtZero: true, max: 1.5, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#888' } },
+                        y: { grid: { display: false }, ticks: { color: '#888' } }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // User management
+        async function loadUsers() {
+            try {
+                const response = await fetch('/users');
+                const users = await response.json();
+                const grid = document.getElementById('userGrid');
+                grid.innerHTML = `<div class="user-card add-user-card" onclick="openRegisterModal()"><div class="icon">➕</div><div>Add User</div></div>`;
+                users.forEach(user => {
+                    const card = document.createElement('div');
+                    card.className = 'user-card';
+                    card.innerHTML = `<img src="/users/${user.user_id}/photo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👤</text></svg>'"><div class="name">${user.name}</div>`;
+                    grid.appendChild(card);
+                });
+            } catch (error) { console.error('Error loading users:', error); }
+        }
+
+        function openRegisterModal() {
+            document.getElementById('registerModal').classList.add('active');
+            startCamera();
+        }
+
+        function closeRegisterModal() {
+            document.getElementById('registerModal').classList.remove('active');
+            stopCamera();
+        }
+
+        async function startCamera() {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('cameraPreview').srcObject = cameraStream;
+            } catch (error) { console.error('Camera error:', error); alert('Could not access camera'); }
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+        }
+
+        async function captureAndRegister() {
+            const name = document.getElementById('userName').value.trim();
+            if (!name) { alert('Please enter a name'); return; }
+            const video = document.getElementById('cameraPreview');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const imageData = canvas.toDataURL('image/jpeg');
+            try {
+                const response = await fetch('/register-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, image: imageData })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('User registered successfully!');
+                    closeRegisterModal();
+                    loadUsers();
+                    document.getElementById('userName').value = '';
+                } else { alert('Registration failed: ' + result.error); }
+            } catch (error) { console.error('Registration error:', error); alert('Registration failed'); }
+        }
+
+        // Initialize
+        loadUsers();
+    </script>
+</body>
+</html>

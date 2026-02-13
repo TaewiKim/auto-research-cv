@@ -36,9 +36,10 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     classification_report,
     confusion_matrix,
+    f1_score,
     roc_auc_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.model_selection import LeaveOneGroupOut, StratifiedKFold, cross_val_predict
 from sklearn.preprocessing import StandardScaler
 
 
@@ -260,6 +261,7 @@ def train_updrs_classifier(
     results = {
         "accuracy": accuracy_score(y, y_pred),
         "balanced_accuracy": balanced_accuracy_score(y, y_pred),
+        "macro_f1": f1_score(y, y_pred, average="macro"),
         "y_true": y,
         "y_pred": y_pred,
         "model": clf,
@@ -290,6 +292,7 @@ def print_results(results: dict[str, Any], feature_names: list[str] | None = Non
     """Print evaluation results."""
     print(f"Accuracy:          {results['accuracy']:.3f}")
     print(f"Balanced Accuracy: {results['balanced_accuracy']:.3f}")
+    print(f"Macro-F1:          {results['macro_f1']:.3f}")
 
     if "roc_auc" in results:
         print(f"ROC-AUC:           {results['roc_auc']:.3f}")
@@ -303,27 +306,266 @@ def print_results(results: dict[str, Any], feature_names: list[str] | None = Non
             print(f"  {name:<20s} {imp:.4f}")
 
 
+def _make_rf_classifier() -> RandomForestClassifier:
+    return RandomForestClassifier(
+        n_estimators=200,
+        max_depth=10,
+        min_samples_leaf=5,
+        class_weight="balanced",
+        random_state=42,
+        n_jobs=-1,
+    )
+
+
+def _load_dataset_with_subject_groups(
+    dataset_dir: str | Path,
+    dataset_name: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Load one CARE-PD dataset with subject-level groups."""
+    walks, labels, subjects = load_care_pd_data(dataset_dir, datasets=[dataset_name])
+    if len(walks) == 0:
+        return np.empty((0, 0)), np.array([]), np.array([])
+    X, _ = extract_features_batch(walks)
+    # Strip dataset prefix (e.g., BMCLab.pkl_subjectA -> subjectA) for LOSO grouping.
+    groups = np.array([s.split("_", 1)[1] if "_" in s else s for s in subjects])
+    return X, labels, groups
+
+
+def evaluate_within_dataset_loso(
+    dataset_dir: str | Path,
+    datasets: list[str] | None = None,
+) -> dict[str, dict[str, float]]:
+    """
+    Literature-style within-dataset evaluation (LOSO, subject-wise).
+
+    Returns per-dataset metrics and macro-F1 mean across datasets.
+    """
+    if datasets is None:
+        datasets = DATASETS_WITH_UPDRS
+
+    results: dict[str, dict[str, float]] = {}
+    macro_values = []
+
+    for dataset_name in datasets:
+        X, y, groups = _load_dataset_with_subject_groups(dataset_dir, dataset_name)
+        if len(y) == 0:
+            continue
+
+        logo = LeaveOneGroupOut()
+        y_pred = np.empty_like(y)
+
+        for train_idx, test_idx in logo.split(X, y, groups=groups):
+            scaler = StandardScaler()
+            X_train = scaler.fit_transform(X[train_idx])
+            X_test = scaler.transform(X[test_idx])
+            clf = _make_rf_classifier()
+            clf.fit(X_train, y[train_idx])
+            y_pred[test_idx] = clf.predict(X_test)
+
+        metrics = {
+            "macro_f1": float(f1_score(y, y_pred, average="macro")),
+            "accuracy": float(accuracy_score(y, y_pred)),
+            "balanced_accuracy": float(balanced_accuracy_score(y, y_pred)),
+            "n_subjects": int(len(np.unique(groups))),
+            "n_walks": int(len(y)),
+        }
+        results[dataset_name] = metrics
+        macro_values.append(metrics["macro_f1"])
+
+    if macro_values:
+        results["summary"] = {"macro_f1_mean": float(np.mean(macro_values))}
+    return results
+
+
+def evaluate_lodo(
+    dataset_dir: str | Path,
+    datasets: list[str] | None = None,
+) -> dict[str, dict[str, float]]:
+    """
+    Literature-style Leave-One-Dataset-Out (LODO) evaluation.
+    """
+    if datasets is None:
+        datasets = DATASETS_WITH_UPDRS
+
+    cached: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+    for dataset_name in datasets:
+        cached[dataset_name] = _load_dataset_with_subject_groups(dataset_dir, dataset_name)
+
+    results: dict[str, dict[str, float]] = {}
+    macro_values = []
+
+    for test_dataset in datasets:
+        X_test, y_test, _ = cached[test_dataset]
+        if len(y_test) == 0:
+            continue
+
+        train_parts = [cached[name] for name in datasets if name != test_dataset and len(cached[name][1]) > 0]
+        X_train = np.concatenate([part[0] for part in train_parts], axis=0)
+        y_train = np.concatenate([part[1] for part in train_parts], axis=0)
+
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        clf = _make_rf_classifier()
+        clf.fit(X_train_scaled, y_train)
+        y_pred = clf.predict(X_test_scaled)
+
+        metrics = {
+            "macro_f1": float(f1_score(y_test, y_pred, average="macro")),
+            "accuracy": float(accuracy_score(y_test, y_pred)),
+            "balanced_accuracy": float(balanced_accuracy_score(y_test, y_pred)),
+            "n_walks_test": int(len(y_test)),
+        }
+        results[test_dataset] = metrics
+        macro_values.append(metrics["macro_f1"])
+
+    if macro_values:
+        results["summary"] = {"macro_f1_mean": float(np.mean(macro_values))}
+    return results
+
+
 if __name__ == "__main__":
+    import argparse
+    import json
     import sys
 
-    dataset_dir = sys.argv[1] if len(sys.argv) > 1 else "data/datasets/vida-adl_CARE-PD"
+    parser = argparse.ArgumentParser(description="CARE-PD baseline evaluation")
+    parser.add_argument(
+        "dataset_dir",
+        nargs="?",
+        default="data/datasets/CARE-PD",
+        help="Directory containing CARE-PD .pkl files",
+    )
+    parser.add_argument(
+        "--protocol",
+        choices=["literature", "all", "legacy"],
+        default="literature",
+        help="Evaluation protocol. literature = LOSO + LODO (recommended).",
+    )
+    parser.add_argument(
+        "--method",
+        choices=["rf", "carepd_official", "auto"],
+        default="auto",
+        help="rf: handcrafted baseline, carepd_official: paper code path, auto: prefer official if ready.",
+    )
+    parser.add_argument(
+        "--carepd-code-dir",
+        default="data/datasets/CARE-PD-code",
+        help="Path to official CARE-PD code repository.",
+    )
+    parser.add_argument(
+        "--backbone",
+        default="motionbert",
+        help="Official CARE-PD backbone for run.py (e.g. motionbert, mixste, motionagformer, poseformerv2, momask).",
+    )
+    parser.add_argument(
+        "--config",
+        default="BMCLab_backright.json",
+        help="Official CARE-PD config file for selected backbone.",
+    )
+    args = parser.parse_args()
 
-    print("Loading CARE-PD data...")
-    walks, labels, subjects = load_care_pd_data(dataset_dir)
-    print(f"Loaded {len(walks)} walks")
+    dataset_dir = args.dataset_dir
 
-    print("\nExtracting features...")
-    X, feature_names = extract_features_batch(walks)
-    print(f"Feature matrix: {X.shape}")
+    selected_method = args.method
+    if selected_method == "auto":
+        try:
+            from carepd_official import official_env_ready
+        except Exception:
+            selected_method = "rf"
+        else:
+            ready, _ = official_env_ready(args.carepd_code_dir)
+            selected_method = "carepd_official" if ready else "rf"
 
-    print("\n" + "=" * 50)
-    print("4-Class UPDRS Prediction")
-    print("=" * 50)
-    results = train_updrs_classifier(X, labels, binary=False)
-    print_results(results, feature_names)
+    if selected_method == "carepd_official":
+        from carepd_official import official_env_ready, run_official_eval
 
-    print("\n" + "=" * 50)
-    print("Binary: Normal vs Impaired")
-    print("=" * 50)
-    results_binary = train_updrs_classifier(X, labels, binary=True)
-    print_results(results_binary, feature_names)
+        ready, issues = official_env_ready(args.carepd_code_dir)
+        if not ready:
+            print("CARE-PD official method is not ready:")
+            for issue in issues:
+                print(f"  - {issue}")
+            print("Falling back to RF baseline method.")
+            selected_method = "rf"
+        else:
+            protocol = "within" if args.protocol in {"literature", "all"} else "within"
+            print("\n" + "=" * 50)
+            print("CARE-PD Official Method")
+            print("=" * 50)
+            print(f"code_dir:  {args.carepd_code_dir}")
+            print(f"protocol:  {protocol}")
+            print(f"backbone:  {args.backbone}")
+            print(f"config:    {args.config}")
+            run = run_official_eval(
+                code_dir=args.carepd_code_dir,
+                backbone=args.backbone,
+                config=args.config,
+                protocol=protocol,
+                python_executable=sys.executable,
+            )
+            print("\n[stdout]")
+            print(run.stdout[-8000:] if run.stdout else "(empty)")
+            print("\n[stderr]")
+            print(run.stderr[-8000:] if run.stderr else "(empty)")
+            print(f"\nexit_code: {run.returncode}")
+            summary = {
+                "method": "carepd_official",
+                "protocol": protocol,
+                "backbone": args.backbone,
+                "config": args.config,
+                "exit_code": run.returncode,
+            }
+            print("\nsummary:", json.dumps(summary, ensure_ascii=False))
+            raise SystemExit(run.returncode)
+
+    if selected_method == "rf" and args.protocol in {"literature", "all"}:
+        print("\n" + "=" * 50)
+        print("Within-Dataset LOSO (Literature Protocol)")
+        print("=" * 50)
+        loso_results = evaluate_within_dataset_loso(dataset_dir)
+        for ds in DATASETS_WITH_UPDRS:
+            if ds not in loso_results:
+                continue
+            r = loso_results[ds]
+            print(
+                f"{ds:<12s} Macro-F1={r['macro_f1']:.3f}  "
+                f"Acc={r['accuracy']:.3f}  BalAcc={r['balanced_accuracy']:.3f}  "
+                f"Subjects={r['n_subjects']}  Walks={r['n_walks']}"
+            )
+        if "summary" in loso_results:
+            print(f"LOSO Macro-F1 mean: {loso_results['summary']['macro_f1_mean']:.3f}")
+
+        print("\n" + "=" * 50)
+        print("LODO (Literature Protocol)")
+        print("=" * 50)
+        lodo_results = evaluate_lodo(dataset_dir)
+        for ds in DATASETS_WITH_UPDRS:
+            if ds not in lodo_results:
+                continue
+            r = lodo_results[ds]
+            print(
+                f"Test={ds:<12s} Macro-F1={r['macro_f1']:.3f}  "
+                f"Acc={r['accuracy']:.3f}  BalAcc={r['balanced_accuracy']:.3f}  "
+                f"N_test={r['n_walks_test']}"
+            )
+        if "summary" in lodo_results:
+            print(f"LODO Macro-F1 mean: {lodo_results['summary']['macro_f1_mean']:.3f}")
+
+    if selected_method == "rf" and args.protocol in {"legacy", "all"}:
+        print("\n" + "=" * 50)
+        print("Legacy Pooled CV (Not Literature Protocol)")
+        print("=" * 50)
+        print("Loading CARE-PD data...")
+        walks, labels, _ = load_care_pd_data(dataset_dir)
+        print(f"Loaded {len(walks)} walks")
+        X, feature_names = extract_features_batch(walks)
+        print(f"Feature matrix: {X.shape}")
+
+        print("\n4-Class UPDRS Prediction")
+        results = train_updrs_classifier(X, labels, binary=False)
+        print_results(results, feature_names)
+
+        print("\nBinary: Normal vs Impaired")
+        results_binary = train_updrs_classifier(X, labels, binary=True)
+        print_results(results_binary, feature_names)
